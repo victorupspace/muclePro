@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+
+    /* Tokens de marca (canais RGB). Trocar aqui para aplicar outra marca. */
+    --color-brand: 1 33 92; /* brand/navy-deep #01215C */
+    --color-brand-hover: 0 47 140; /* brand/navy #002F8C */
+    /* Tom claro do navy para textos e detalhes da marca sobre fundo escuro,
+       onde o navy-deep fica ilegível (contraste 6.9:1 sobre #1F1F1F). */
+    --color-brand-light: 141 168 224; /* #8DA8E0 */
+    --color-accent: 0 85 255; /* accent/volt #0055FF */
+    --color-accent-hover: 0 71 214; /* #0047D6 */
+    --color-accent-dim: 12 133 255; /* accent/dim #0C85FF */
+    --color-accent-ember: 255 82 82; /* accent/ember #FF5252 */
+    --color-accent-gold: 255 166 0; /* accent/gold #FFA600 */
+  }
+
+  html {
+    /* Rede de segurança: a classe do next/font (no <html>) sobrescreve isto.
+       Se o hot reload perder essa classe, cai numa sans-serif, nunca em Times. */
+    --font-jakarta: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  html,
+  body {
+    @apply bg-white text-ink-900 font-sans antialiased;
+    overflow-x: hidden;
+  }
+
+  body {
+    font-feature-settings: "ss01", "cv11";
+  }
+
+  ::selection {
+    @apply bg-brand text-white;
+  }
+
+  *:focus-visible {
+    @apply outline-none ring-2 ring-brand ring-offset-2 ring-offset-white;
+  }
+
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    @apply ring-0 ring-offset-0;
+  }
+
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active,
+  select:-webkit-autofill,
+  select:-webkit-autofill:hover,
+  select:-webkit-autofill:focus,
+  select:-webkit-autofill:active,
+  textarea:-webkit-autofill,
+  textarea:-webkit-autofill:hover,
+  textarea:-webkit-autofill:focus,
+  textarea:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+    box-shadow: 0 0 0 1000px #ffffff inset !important;
+    -webkit-text-fill-color: #1F1F1F !important;
+    caret-color: #1F1F1F;
+    transition: background-color 9999s ease-in-out 0s;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .mask-fade-b {
+    mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+  }
+}

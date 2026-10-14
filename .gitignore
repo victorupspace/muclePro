@@ -1,0 +1,18 @@
+node_modules
+.next
+out
+dist
+.env*
+!.env.example
+.DS_Store
+*.log
+.vercel
+tsconfig.tsbuildinfo
+.gstack/
+
+# Supabase CLI link state (contém o ref do projeto local)
+supabase/.temp/
+# Arquivos de metadados do macOS
+._*
+# Vídeos originais (pesados demais para o GitHub); o site usa hero.mp4
+public/assets/videos/*.mov

@@ -132,6 +132,7 @@ export default function EquipePage() {
     {
       key: "since",
       header: "Entrada",
+      className: "hidden 2xl:table-cell",
       mobileLabel: "Entrada",
       render: (m) => <span className="text-[12px] text-ink-500">{m.startedAt ? formatDateValue(m.startedAt) : "—"}</span>,
     },

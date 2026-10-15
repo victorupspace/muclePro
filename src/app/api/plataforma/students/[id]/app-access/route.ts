@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { AccessError } from "@/lib/plataforma/staff-access.server";
+import { AccessError, assertAccountWritable } from "@/lib/plataforma/staff-access.server";
 import { inviteStudentApp, loadStudentForApp, requireAppManager, revokeStudentApp } from "@/lib/plataforma/student-app.server";
 
 type RouteContext = { params: { id: string } };
@@ -14,6 +14,7 @@ function fail(error: unknown) {
 export async function POST(req: NextRequest, { params }: RouteContext) {
   try {
     const requester = await requireAppManager(req);
+    await assertAccountWritable(requester.accountId);
     const student = await loadStudentForApp(params.id, requester);
     return NextResponse.json({ ok: true, ...(await inviteStudentApp(req, requester, student)) });
   } catch (error) {

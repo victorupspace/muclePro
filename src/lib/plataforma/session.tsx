@@ -12,7 +12,7 @@ import {
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { clearSessionTimeout, useSessionTimeout } from "@/lib/session-timeout";
-import type { AccountProfile, BusinessType, DocumentType, Permissions, StaffRole } from "./types";
+import type { AccountBilling, AccountProfile, BusinessType, DocumentType, Permissions, StaffRole } from "./types";
 
 type Status = "checking" | "authenticated" | "blocked" | "unauthenticated";
 
@@ -36,7 +36,67 @@ const OWNER_PERMISSIONS: Permissions = {
   canDeleteRecords: true,
   canManageCompany: true,
   canViewReports: true,
+  readOnly: false,
 };
+
+// Modo leitura: mantém o que dá para ver, tira tudo o que grava.
+function readOnlyPermissions(p: Permissions): Permissions {
+  return {
+    ...p,
+    canRegisterStudents: false,
+    canSendPaymentLinks: false,
+    canCreateWorkouts: false,
+    canManageTeam: false,
+    canManagePlans: false,
+    canManageUnits: false,
+    canDeleteRecords: false,
+    canManageCompany: false,
+    readOnly: true,
+  };
+}
+
+type BillingRaw = Record<string, unknown> | null;
+
+async function loadBilling(): Promise<AccountBilling | undefined> {
+  const { data, error } = await supabase.rpc("current_account_billing");
+  if (error || !data) return undefined;
+  const r = data as NonNullable<BillingRaw>;
+  const num = (v: unknown) => (v === null || v === undefined ? undefined : Number(v));
+  const str = (v: unknown) => (v === null || v === undefined ? undefined : String(v));
+  return {
+    status: (r.status as AccountBilling["status"]) ?? "trial",
+    readOnly: Boolean(r.readOnly),
+    trialEndsAt: str(r.trialEndsAt),
+    graceDays: Number(r.graceDays ?? 5),
+    planName: str(r.planName),
+    planMonths: num(r.planMonths),
+    price: num(r.price),
+    nextDueOn: str(r.nextDueOn)?.slice(0, 10),
+    overdueSince: str(r.overdueSince),
+    canceledAt: str(r.canceledAt),
+    invoices: ((r.invoices as Record<string, unknown>[]) ?? []).map((i) => ({
+      id: String(i.id),
+      planName: str(i.planName),
+      periodStart: String(i.periodStart),
+      periodEnd: String(i.periodEnd),
+      dueOn: String(i.dueOn),
+      amount: Number(i.amount),
+      status: i.status as AccountBilling["invoices"][number]["status"],
+      paidAt: str(i.paidAt),
+      gatewayUrl: str(i.gatewayUrl),
+    })),
+  };
+}
+
+async function withBilling(profile: AccountProfile | null): Promise<AccountProfile | null> {
+  if (!profile) return null;
+  const billing = await loadBilling();
+  return {
+    ...profile,
+    billing,
+    permissions: billing?.readOnly ? readOnlyPermissions(profile.permissions) : profile.permissions,
+  };
+}
 
 function staffPermissions(staff: StaffRow): Permissions {
   const isManager = staff.role === "gestao";
@@ -51,6 +111,7 @@ function staffPermissions(staff: StaffRow): Permissions {
     canDeleteRecords: isManager,
     canManageCompany: false,
     canViewReports: isManager || staff.role === "contabilidade",
+    readOnly: false,
   };
 }
 
@@ -188,7 +249,7 @@ export function AccountSessionProvider({ children }: { children: ReactNode }) {
   const refreshProfile = useCallback(async () => {
     const { data } = await supabase.auth.getUser();
     if (!data.user) return;
-    const next = await loadProfile(data.user.id);
+    const next = await withBilling(await loadProfile(data.user.id));
     if (next) setProfile(next);
   }, []);
 
@@ -207,7 +268,7 @@ export function AccountSessionProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const next = await loadProfile(data.user.id);
+      const next = await withBilling(await loadProfile(data.user.id));
       if (!mounted) return;
 
       if (!next) {

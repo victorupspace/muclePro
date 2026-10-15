@@ -16,6 +16,7 @@ import { CHURN_REASON_LABEL, formatCurrency, formatDateValue, toDateValue, today
 import { buildNextBestActions, type NextBestAction } from "./next-best-action";
 import { useAccountSession } from "./session";
 import type {
+  AccountBilling,
   AccountSettings,
   Assessment,
   AssessmentKind,
@@ -90,14 +91,19 @@ import {
 export { staffAccessState };
 export type { StaffInvite };
 
-function mapSubscription(paymentStatus?: string, paymentPlan?: string, nextDueAt?: string): Subscription {
-  const status: SubscriptionStatus =
-    paymentStatus === "em_dia"
-      ? "ativo"
-      : paymentStatus === "trial" || paymentStatus === "nao_iniciado" || !paymentStatus
-        ? "trial"
-        : "expirado";
-  return { status, plan: paymentPlan || "musclePro", nextDueAt };
+function mapSubscription(billing?: AccountBilling, paymentPlan?: string): Subscription {
+  const status: SubscriptionStatus = !billing
+    ? "trial"
+    : billing.readOnly
+      ? billing.status === "cancelado"
+        ? "cancelado"
+        : "leitura"
+      : billing.status === "atrasado"
+        ? "atrasado"
+        : billing.status === "trial" || billing.status === "nao_iniciado"
+          ? "trial"
+          : "ativo";
+  return { status, plan: billing?.planName || paymentPlan || "musclePro", trialEndsAt: billing?.trialEndsAt, nextDueAt: billing?.nextDueOn };
 }
 
 const nullable = (v?: string | number | null) => (v === undefined || v === "" ? null : v);
@@ -587,8 +593,8 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
   );
 
   const subscription = useMemo(
-    () => mapSubscription(profile?.paymentStatus, profile?.paymentPlan, profile?.paymentNextDueAt),
-    [profile?.paymentStatus, profile?.paymentPlan, profile?.paymentNextDueAt],
+    () => mapSubscription(profile?.billing, profile?.paymentPlan),
+    [profile?.billing, profile?.paymentPlan],
   );
 
   // ───────────── histórico ─────────────

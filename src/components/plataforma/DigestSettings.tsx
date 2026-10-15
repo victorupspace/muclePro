@@ -108,7 +108,7 @@ export function DigestSettings() {
         <Toggle
           checked={settings.digestEnabled}
           onChange={(next) => void toggle(next)}
-          disabled={saving}
+          disabled={saving || profile?.permissions.readOnly}
           label="Receber o resumo todo dia"
           description={
             settings.digestEnabled

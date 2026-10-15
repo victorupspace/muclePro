@@ -26,6 +26,14 @@ export type Requester = {
 
 const LINK_TTL_MS = 12 * 60 * 60 * 1000;
 
+// Modo leitura (assinatura em atraso): nada de novos acessos ou alterações.
+export async function assertAccountWritable(accountId: string) {
+  const { data } = await createSupabaseAdminClient().rpc("account_read_only", { p_account: accountId });
+  if (data === true) {
+    throw new AccessError("Assinatura em atraso: o sistema está em modo leitura. Regularize o pagamento para voltar a cadastrar e editar.", 402);
+  }
+}
+
 export async function requireManager(req: NextRequest): Promise<Requester> {
   const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!token) throw new AccessError("Sessão ausente. Entre novamente.", 401);

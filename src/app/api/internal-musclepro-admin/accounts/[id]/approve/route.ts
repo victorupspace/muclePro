@@ -73,6 +73,10 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         invited_at: now,
         auth_user_id: access.authUserId,
         payment_status: accountRow.payment_status === "nao_iniciado" ? "trial" : accountRow.payment_status,
+        // Teste grátis de 14 dias a partir da aprovação.
+        ...(accountRow.payment_status === "nao_iniciado"
+          ? { trial_ends_at: new Date(Date.now() + 14 * 86_400_000).toISOString() }
+          : {}),
       })
       .eq("id", accountRow.id);
 

@@ -44,6 +44,12 @@ type AccountRow = {
   payment_monthly_amount: number | null;
   payment_next_due_at: string | null;
   payment_last_paid_at: string | null;
+  plan_id: string | null;
+  custom_price: number | string | null;
+  trial_ends_at: string | null;
+  grace_days: number | null;
+  subscription_started_at: string | null;
+  canceled_at: string | null;
 };
 
 type LandingLeadRow = {
@@ -129,6 +135,12 @@ function mapAccount(row: AccountRow, eventsByResource: Record<string, HistoryEve
       monthlyAmount: row.payment_monthly_amount ?? undefined,
       nextDueAt: row.payment_next_due_at ?? undefined,
       lastPaidAt: row.payment_last_paid_at ?? undefined,
+      planId: row.plan_id ?? undefined,
+      customPrice: row.custom_price === null || row.custom_price === undefined ? undefined : Number(row.custom_price),
+      trialEndsAt: row.trial_ends_at ?? undefined,
+      graceDays: row.grace_days ?? 5,
+      subscriptionStartedAt: row.subscription_started_at ?? undefined,
+      canceledAt: row.canceled_at ?? undefined,
     },
     history: sortedHistory([
       ...(eventsByResource[`account:${row.id}`] ?? []),

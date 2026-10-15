@@ -105,6 +105,7 @@ export default function TarefasPage() {
             : "Nenhuma tarefa em aberto. Crie uma para não depender da memória."
         }
         actions={
+          profile?.permissions.readOnly ? undefined : (
           <button
             type="button"
             onClick={() => setAddOpen(true)}
@@ -113,6 +114,7 @@ export default function TarefasPage() {
             <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
             Nova tarefa
           </button>
+          )
         }
       />
 

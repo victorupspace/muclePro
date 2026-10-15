@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
   AccessError,
+  assertAccountWritable,
   inviteStaff,
   loadStaffOfAccount,
   requireManager,
@@ -21,6 +22,7 @@ function fail(error: unknown) {
 export async function POST(req: NextRequest, { params }: RouteContext) {
   try {
     const requester = await requireManager(req);
+    await assertAccountWritable(requester.accountId);
     const staff = await loadStaffOfAccount(params.id, requester.accountId);
     const body = (await req.json().catch(() => ({}))) as { email?: string };
     const result = await inviteStaff(req, requester, staff, body.email ?? staff.email ?? "");

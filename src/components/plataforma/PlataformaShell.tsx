@@ -8,6 +8,7 @@ import { SplashScreen } from "@/components/ui/SplashScreen";
 import { STAFF_ROLE_LABEL } from "@/lib/plataforma/format";
 import { useAccountSession } from "@/lib/plataforma/session";
 import { usePlataformaStore } from "@/lib/plataforma/store";
+import { BillingBanner } from "./BillingBanner";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { useToast } from "./Toast";
@@ -70,6 +71,7 @@ export function PlataformaShell({ children }: { children: ReactNode }) {
             roleLine={roleLine}
             showTeamLog={profile.permissions.isManager}
             showReports={profile.permissions.canViewReports}
+            showBilling={profile.permissions.isManager}
             onSignOut={signOut}
           />
         </aside>
@@ -98,6 +100,7 @@ export function PlataformaShell({ children }: { children: ReactNode }) {
                   roleLine={roleLine}
                   showTeamLog={profile.permissions.isManager}
                   showReports={profile.permissions.canViewReports}
+                  showBilling={profile.permissions.isManager}
                   onSignOut={signOut}
                   onClose={() => setMobileOpen(false)}
                 />
@@ -108,7 +111,10 @@ export function PlataformaShell({ children }: { children: ReactNode }) {
 
         <div className="flex min-w-0 flex-1 flex-col">
           <Topbar onOpenMobileNav={() => setMobileOpen(true)} onSignOut={signOut} />
-          <main className="min-w-0 flex-1 px-3.5 py-5 md:px-8 md:py-8">{children}</main>
+          <main className="min-w-0 flex-1 px-3.5 py-5 md:px-8 md:py-8">
+            <BillingBanner billing={profile.billing} canSeeBilling={profile.permissions.isManager} />
+            {children}
+          </main>
         </div>
       </div>
     </>
@@ -118,13 +124,17 @@ export function PlataformaShell({ children }: { children: ReactNode }) {
 // Toda falha de escrita no store vira um toast, em qualquer tela.
 function ActionErrorToaster() {
   const { actionError, clearActionError } = usePlataformaStore();
+  const { refreshProfile } = useAccountSession();
   const { push } = useToast();
 
   useEffect(() => {
     if (!actionError) return;
-    push({ tone: "warn", title: "Não deu certo", description: actionError });
+    const locked = actionError.includes("modo leitura");
+    push({ tone: "warn", title: locked ? "Sistema em modo leitura" : "Não deu certo", description: actionError });
     clearActionError();
-  }, [actionError, push, clearActionError]);
+    // A assinatura pode ter vencido com a tela aberta: atualiza avisos e botões.
+    if (locked) void refreshProfile();
+  }, [actionError, push, clearActionError, refreshProfile]);
 
   return null;
 }

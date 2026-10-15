@@ -117,8 +117,12 @@ export function StudentHeader({
 
   const secondaryActions = [
     ...(canEdit ? [{ label: "Editar", onClick: onEdit, icon: <Pencil className="h-3.5 w-3.5" strokeWidth={2.2} /> }] : []),
-    { label: "Tarefa", onClick: onAddTask, icon: <ListTodo className="h-3.5 w-3.5" strokeWidth={2.2} /> },
-    { label: "Nota", onClick: onAddNote, icon: <StickyNote className="h-3.5 w-3.5" strokeWidth={2.2} /> },
+    ...(profile?.permissions.readOnly
+      ? []
+      : [
+          { label: "Tarefa", onClick: onAddTask, icon: <ListTodo className="h-3.5 w-3.5" strokeWidth={2.2} /> },
+          { label: "Nota", onClick: onAddNote, icon: <StickyNote className="h-3.5 w-3.5" strokeWidth={2.2} /> },
+        ]),
     ...(canEdit || profile?.permissions.canCreateWorkouts
       ? [
           {

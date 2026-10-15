@@ -182,7 +182,9 @@ export const ACTIVITY_KIND_LABEL: Record<StudentActivityKind, string> = {
 export const SUBSCRIPTION_LABEL: Record<SubscriptionStatus, string> = {
   ativo: "Assinatura ativa",
   trial: "Em trial",
-  expirado: "Expirada",
+  atrasado: "Pagamento em atraso",
+  leitura: "Modo leitura",
+  cancelado: "Assinatura cancelada",
 };
 
 // ───────────────────────────── números e moeda ─────────────────────────────

@@ -150,11 +150,15 @@ export default function PlataformaDashboardPage() {
             highlight={metrics.overdueTasks > 0}
             icon={<ListTodo className="h-3.5 w-3.5" strokeWidth={2.4} />}
             href="/plataforma/tarefas"
-            action={{
-              label: "Nova tarefa",
-              onClick: () => setAddTask(true),
-              icon: <Plus className="h-3.5 w-3.5" strokeWidth={2.2} />,
-            }}
+            action={
+              perms?.readOnly
+                ? undefined
+                : {
+                    label: "Nova tarefa",
+                    onClick: () => setAddTask(true),
+                    icon: <Plus className="h-3.5 w-3.5" strokeWidth={2.2} />,
+                  }
+            }
             delay={0.25}
           />
           {seesMoney && (
@@ -172,7 +176,7 @@ export default function PlataformaDashboardPage() {
       </section>
 
       <section className={cn("grid gap-4", seesMoney && "xl:grid-cols-[1.4fr_1fr]")}>
-        {seesMoney && <ForecastCard canEditGoals={Boolean(perms?.isManager)} />}
+        {seesMoney && <ForecastCard canEditGoals={Boolean(perms?.isManager && !perms.readOnly)} />}
         <ChurnRadar />
       </section>
 

@@ -24,6 +24,8 @@ export type Permissions = {
   canManageCompany: boolean;
   // relatórios e exportações: gestão e contabilidade
   canViewReports: boolean;
+  // assinatura em atraso além da carência: só consulta
+  readOnly: boolean;
 };
 
 export type AccountProfile = {
@@ -49,6 +51,35 @@ export type AccountProfile = {
   paymentStatus?: string;
   paymentPlan?: string;
   paymentNextDueAt?: string;
+  billing?: AccountBilling;
+};
+
+// ───────────────────────────── assinatura musclePro ────────────────────────
+
+export type AccountInvoice = {
+  id: string;
+  planName?: string;
+  periodStart: string;
+  periodEnd: string;
+  dueOn: string;
+  amount: number;
+  status: "aberta" | "paga" | "cancelada";
+  paidAt?: string;
+  gatewayUrl?: string;
+};
+
+export type AccountBilling = {
+  status: "trial" | "em_dia" | "pendente" | "atrasado" | "cancelado" | "nao_iniciado";
+  readOnly: boolean;
+  trialEndsAt?: string;
+  graceDays: number;
+  planName?: string;
+  planMonths?: number;
+  price?: number;
+  nextDueOn?: string;
+  overdueSince?: string;
+  canceledAt?: string;
+  invoices: AccountInvoice[];
 };
 
 export type CompanyProfilePatch = {
@@ -61,7 +92,7 @@ export type CompanyProfilePatch = {
   contactEmail?: string;
 };
 
-export type SubscriptionStatus = "ativo" | "trial" | "expirado";
+export type SubscriptionStatus = "ativo" | "trial" | "atrasado" | "leitura" | "cancelado";
 
 export type Subscription = {
   status: SubscriptionStatus;

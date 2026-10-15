@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
+  BadgeCheck,
   CreditCard,
   Dumbbell,
   HeadphonesIcon,
@@ -33,6 +34,7 @@ const PRIMARY: Item[] = [
   { label: "Tarefas", href: "/plataforma/tarefas", icon: ListTodo },
 ];
 
+const BILLING: Item = { label: "Assinatura", href: "/plataforma/assinatura", icon: BadgeCheck };
 const REPORTS: Item = { label: "Relatórios", href: "/plataforma/relatorios", icon: BarChart3 };
 const TEAM_LOG: Item = { label: "Atividade da equipe", href: "/plataforma/atividades", icon: History };
 
@@ -49,11 +51,12 @@ type Props = {
   // Gestores veem o registro da equipe; gestão e contabilidade, os relatórios.
   showTeamLog?: boolean;
   showReports?: boolean;
+  showBilling?: boolean;
   onSignOut: () => void;
   onClose?: () => void;
 };
 
-export function Sidebar({ fullName, companyName, roleLine, showTeamLog, showReports, onSignOut, onClose }: Props) {
+export function Sidebar({ fullName, companyName, roleLine, showTeamLog, showReports, showBilling, onSignOut, onClose }: Props) {
   const pathname = usePathname();
   const firstName = fullName.split(" ")[0] ?? fullName;
 
@@ -101,7 +104,7 @@ export function Sidebar({ fullName, companyName, roleLine, showTeamLog, showRepo
         <div className="mt-5 px-3 pb-1.5 pt-2 text-[9.5px] font-bold uppercase tracking-[0.16em] text-ink-400">
           Conta
         </div>
-        {[...(showReports ? [REPORTS] : []), ...(showTeamLog ? [TEAM_LOG] : []), ...SECONDARY].map((item) => (
+        {[...(showReports ? [REPORTS] : []), ...(showTeamLog ? [TEAM_LOG] : []), ...(showBilling ? [BILLING] : []), ...SECONDARY].map((item) => (
           <NavItem key={item.href} item={item} pathname={pathname} />
         ))}
       </nav>

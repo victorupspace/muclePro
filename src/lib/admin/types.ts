@@ -51,6 +51,13 @@ export type Account = {
     monthlyAmount?: number;
     nextDueAt?: string;
     lastPaidAt?: string;
+    // assinatura
+    planId?: string;
+    customPrice?: number;
+    trialEndsAt?: string;
+    graceDays: number;
+    subscriptionStartedAt?: string;
+    canceledAt?: string;
   };
   history: HistoryEvent[];
 };

@@ -26,8 +26,20 @@ const PAINS = [
     answer: "Filiais no mesmo sistema, com cada funcionário vinculado à sua unidade.",
   },
   {
+    pain: "Aluno some e você só percebe quando cancela",
+    answer: "Radar de risco de saída e motivo obrigatório de cada cancelamento.",
+  },
+  {
+    pain: "Ficha de treino em papel, esquecida na gaveta",
+    answer: "App do aluno com o treino do dia, carga anotada e ciclos com lembrete.",
+  },
+  {
+    pain: "Interessado que pergunta e nunca mais aparece",
+    answer: "Funil de matrículas com aula experimental e motivo de cada perda.",
+  },
+  {
     pain: "Gestão reativa, apagando incêndio",
-    answer: "Painel com tarefas e ações recomendadas ao gestor.",
+    answer: "Painel com caixa do mês, metas, ações recomendadas e resumo diário às 7h.",
   },
 ];
 
@@ -97,16 +109,16 @@ export function Dores() {
                   <span className="text-brand-light">não escalam</span>.
                 </h3>
                 <p className="mt-4 max-w-md text-body-lg text-white/70">
-                  Veja em uma demonstração como fica a sua operação dentro do
-                  musclePro, para uma unidade ou para a rede inteira.
+                  Crie a conta e use tudo por 14 dias, para uma unidade ou para a
+                  rede inteira. Se preferir, um especialista mostra antes.
                 </p>
               </div>
               <div className="w-full md:max-w-[360px] md:justify-self-end">
-                <CTA href="#contact" onDark>
-                  Solicitar demonstração
+                <CTA href="/cadastro" onDark>
+                  Começar teste grátis
                 </CTA>
                 <p className="mt-3 text-center text-[11px] text-white/40">
-                  Resposta em até 1 dia útil.
+                  Cadastro avaliado em até 48 horas.
                 </p>
               </div>
             </div>

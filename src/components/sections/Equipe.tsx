@@ -72,7 +72,7 @@ export function Equipe() {
             </ul>
 
             <div className="mt-10 max-w-xs">
-              <CTA href="#contact">Ver uma demonstração</CTA>
+              <CTA href="/cadastro">Começar teste grátis</CTA>
             </div>
           </Reveal>
 

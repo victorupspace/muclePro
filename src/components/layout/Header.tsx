@@ -10,9 +10,10 @@ import { cn } from "@/lib/cn";
 
 const NAV = [
   { label: "Produto", href: "#produto" },
-  { label: "Alunos", href: "#alunos" },
-  { label: "Financeiro", href: "#financeiro" },
-  { label: "Equipe", href: "#equipe" },
+  { label: "App do aluno", href: "#app-do-aluno" },
+  { label: "Treinos", href: "#treinos" },
+  { label: "Para o dono", href: "#dono" },
+  { label: "Como começar", href: "#comecar" },
 ];
 
 const EASE = [0.22, 1, 0.36, 1] as const;

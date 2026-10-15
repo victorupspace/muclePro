@@ -11,8 +11,8 @@ import { EASE, fadeUp, stagger } from "@/lib/motion";
 
 const CHECKS = [
   "Contato, plano e situação de pagamento em uma única tela.",
-  "Condição médica e contato de emergência sempre à mão.",
-  "Aluno vinculado ao plano e à unidade em que treina.",
+  "Saúde, medidas e fichas de treino de cada ciclo no histórico.",
+  "Risco de saída calculado sozinho, com o motivo de cada alerta.",
 ];
 
 export function Alunos() {
@@ -27,10 +27,10 @@ export function Alunos() {
               <span className="text-brand">completo e acessível</span>.
             </h2>
             <p className="mt-5 max-w-xl text-body-lg text-ink-700/70">
-              Contato, plano, condição médica e contato de emergência no mesmo
-              lugar. Quem está na recepção encontra em segundos; quem está no
-              atendimento sabe o que precisa saber. O aluno é cadastrado e
-              acompanhado pelo estabelecimento e não acessa o sistema.
+              Contato, plano, saúde, treinos e pagamentos no mesmo lugar. Quem
+              está na recepção encontra em segundos; quem está no atendimento
+              sabe o que precisa saber. E o próprio aluno acompanha o treino e a
+              evolução pelo app, sem acessar nada da gestão.
             </p>
 
             <ul className="mt-8 space-y-3">
@@ -60,7 +60,7 @@ export function Alunos() {
             </ul>
 
             <div className="mt-10 max-w-xs">
-              <CTA href="#contact">Ver uma demonstração</CTA>
+              <CTA href="/cadastro">Começar teste grátis</CTA>
             </div>
           </Reveal>
 

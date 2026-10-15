@@ -1,0 +1,10 @@
+# Não enviar para a Vercel (o build usa só o que está versionado)
+node_modules
+.next
+.git
+.env*
+!.env.example
+supabase/.temp
+public/assets/videos/*.mov
+*.log
+.gstack

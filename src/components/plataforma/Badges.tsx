@@ -5,7 +5,7 @@ import {
   STAFF_ROLE_LABEL,
   STUDENT_STATUS_LABEL,
 } from "@/lib/plataforma/format";
-import type { BillingState, Payment, StaffRole, StudentStatus } from "@/lib/plataforma/types";
+import type { BillingState, Payment, RiskLevel, StaffRole, StudentStatus } from "@/lib/plataforma/types";
 
 const BASE =
   "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] ring-1 ring-inset";
@@ -88,6 +88,22 @@ export function ActiveBadge({ active, labels = ["Ativo", "Inativo"] }: { active:
     >
       <span className={cn("h-1.5 w-1.5 rounded-full", active ? "bg-success-500" : "bg-ink-400")} />
       {active ? labels[0] : labels[1]}
+    </span>
+  );
+}
+
+const RISK_TONE: Record<RiskLevel, { wrap: string; dot: string; label: string }> = {
+  alto: { wrap: "bg-danger-50 text-danger-700 ring-danger-200", dot: "bg-danger-500", label: "Risco alto" },
+  medio: { wrap: "bg-warning-50 text-warning-800 ring-warning-200", dot: "bg-warning-500", label: "Risco médio" },
+  baixo: { wrap: "bg-success-50 text-success-700 ring-success-200", dot: "bg-success-500", label: "Risco baixo" },
+};
+
+export function RiskBadge({ level, title, className }: { level: RiskLevel; title?: string; className?: string }) {
+  const tone = RISK_TONE[level];
+  return (
+    <span title={title} className={cn(BASE, tone.wrap, className)}>
+      <span className={cn("h-1.5 w-1.5 rounded-full", tone.dot)} />
+      {tone.label}
     </span>
   );
 }

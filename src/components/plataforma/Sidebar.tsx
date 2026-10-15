@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   CreditCard,
   HeadphonesIcon,
+  History,
   LayoutDashboard,
   ListTodo,
   LogOut,
@@ -27,6 +28,8 @@ const PRIMARY: Item[] = [
   { label: "Tarefas", href: "/plataforma/tarefas", icon: ListTodo },
 ];
 
+const TEAM_LOG: Item = { label: "Atividade da equipe", href: "/plataforma/atividades", icon: History };
+
 const SECONDARY: Item[] = [
   { label: "Configurações", href: "/plataforma/configuracoes", icon: Settings },
   { label: "Fale conosco", href: "mailto:contato@musclepro.com.br", icon: HeadphonesIcon, external: true },
@@ -37,11 +40,13 @@ type Props = {
   companyName?: string;
   // Ex.: "Recepção · Centro" para funcionários; vazio para o dono.
   roleLine?: React.ReactNode;
+  // Gestores veem o registro de atividade da equipe.
+  showTeamLog?: boolean;
   onSignOut: () => void;
   onClose?: () => void;
 };
 
-export function Sidebar({ fullName, companyName, roleLine, onSignOut, onClose }: Props) {
+export function Sidebar({ fullName, companyName, roleLine, showTeamLog, onSignOut, onClose }: Props) {
   const pathname = usePathname();
   const firstName = fullName.split(" ")[0] ?? fullName;
 
@@ -89,7 +94,7 @@ export function Sidebar({ fullName, companyName, roleLine, onSignOut, onClose }:
         <div className="mt-5 px-3 pb-1.5 pt-2 text-[9.5px] font-bold uppercase tracking-[0.16em] text-ink-400">
           Conta
         </div>
-        {SECONDARY.map((item) => (
+        {(showTeamLog ? [TEAM_LOG, ...SECONDARY] : SECONDARY).map((item) => (
           <NavItem key={item.href} item={item} pathname={pathname} />
         ))}
       </nav>

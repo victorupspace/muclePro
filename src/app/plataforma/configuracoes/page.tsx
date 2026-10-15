@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Building2, MapPin, Pencil, Plus, Star, Trash2, UserRound } from "lucide-react";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { ActiveBadge } from "@/components/plataforma/Badges";
+import { DigestSettings } from "@/components/plataforma/DigestSettings";
 import { Field, inputClass, selectClass } from "@/components/plataforma/FormKit";
 import { SubscriptionBadge } from "@/components/plataforma/SubscriptionBadge";
 import { useToast } from "@/components/plataforma/Toast";
@@ -99,7 +100,7 @@ export default function ConfiguracoesPage() {
     <div className="space-y-6">
       <PageIntro
         eyebrow="Configurações"
-        title="Dados da empresa e unidades"
+        title="Empresa, unidades e resumo diário"
         description="O que identifica o estabelecimento no sistema: razão social, CNPJ, endereço, contato e filiais."
       />
 
@@ -207,6 +208,8 @@ export default function ConfiguracoesPage() {
         </section>
 
         <div className="space-y-4">
+          {profile?.permissions.isManager && <DigestSettings />}
+
           <section className="rounded-card border border-ink-200 bg-white p-5 md:p-6">
             <header className="mb-4 flex items-start justify-between gap-3">
               <div className="flex items-center gap-2.5">

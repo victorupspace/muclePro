@@ -16,6 +16,8 @@ import {
   Users,
 } from "lucide-react";
 import { AddTaskModal } from "@/components/plataforma/AddTaskModal";
+import { ChurnRadar } from "@/components/plataforma/ChurnRadar";
+import { ForecastCard } from "@/components/plataforma/ForecastCard";
 import { KpiCard } from "@/components/plataforma/KpiCard";
 import { ModuleCard, ModuleEmpty } from "@/components/plataforma/ModuleCard";
 import { RecommendedActions } from "@/components/plataforma/RecommendedActions";
@@ -167,6 +169,11 @@ export default function PlataformaDashboardPage() {
           />
           )}
         </div>
+      </section>
+
+      <section className={cn("grid gap-4", seesMoney && "xl:grid-cols-[1.4fr_1fr]")}>
+        {seesMoney && <ForecastCard canEditGoals={Boolean(perms?.isManager)} />}
+        <ChurnRadar />
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">

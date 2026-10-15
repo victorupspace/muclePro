@@ -10,12 +10,17 @@ import {
   type ReactNode,
 } from "react";
 import { supabase } from "@/lib/supabase/client";
-import { computeBilling, cycleLabel, monthlyRecurring, nextDueDate } from "./billing";
-import { formatCurrency, formatDateValue, todayValue } from "./format";
+import { computeBilling, cycleLabel, monthForecast, monthlyRecurring, nextDueDate } from "./billing";
+import { computeChurnRisk } from "./churn-risk";
+import { CHURN_REASON_LABEL, formatCurrency, formatDateValue, todayValue } from "./format";
 import { buildNextBestActions, type NextBestAction } from "./next-best-action";
 import { useAccountSession } from "./session";
 import type {
+  AccountSettings,
+  ChurnReason,
+  ChurnRisk,
   CompanyProfilePatch,
+  MonthForecast,
   DashboardMetrics,
   Notification,
   NotificationKind,
@@ -38,251 +43,29 @@ import type {
   Unit,
 } from "./types";
 
-// ───────────────────────────── linhas do banco ─────────────────────────────
+import {
+  mapActivity,
+  mapNotification,
+  mapPayment,
+  mapPlan,
+  mapStaff,
+  mapStudent,
+  mapTask,
+  mapUnit,
+  staffAccessState,
+  type ActivityRow,
+  type AnnouncementRow,
+  type PaymentRow,
+  type PlanRow,
+  type StaffInvite,
+  type StaffRow,
+  type StudentRow,
+  type TaskRow,
+  type UnitRow,
+} from "./mappers";
 
-type UnitRow = {
-  id: string;
-  account_id: string;
-  name: string;
-  address: string | null;
-  city: string | null;
-  state: string | null;
-  phone: string | null;
-  is_main: boolean;
-  active: boolean;
-  created_at: string;
-};
-
-type StaffRow = {
-  id: string;
-  account_id: string;
-  unit_id: string | null;
-  auth_user_id: string | null;
-  full_name: string;
-  cpf: string | null;
-  email: string | null;
-  phone: string | null;
-  role: StaffRole;
-  role_label: string | null;
-  started_at: string | null;
-  ended_at: string | null;
-  can_register_students: boolean;
-  can_send_payment_links: boolean;
-  can_create_workouts: boolean;
-  active: boolean;
-  notes: string | null;
-  access_invited_at: string | null;
-  access_accepted_at: string | null;
-  created_at: string;
-};
-
-type PlanRow = {
-  id: string;
-  account_id: string;
-  name: string;
-  amount: number | string;
-  frequency: PlanFrequency;
-  description: string | null;
-  active: boolean;
-  created_at: string;
-};
-
-type StudentRow = {
-  id: string;
-  account_id: string;
-  unit_id: string | null;
-  plan_id: string | null;
-  full_name: string;
-  cpf: string | null;
-  birth_date: string | null;
-  whatsapp: string | null;
-  email: string | null;
-  medical_notes: string | null;
-  emergency_contact_name: string | null;
-  emergency_contact_phone: string | null;
-  status: StudentStatus;
-  plan_started_at: string | null;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-type PaymentRow = {
-  id: string;
-  account_id: string;
-  student_id: string;
-  plan_id: string | null;
-  amount: number | string;
-  due_at: string;
-  paid_at: string | null;
-  method: PaymentMethod | null;
-  status: Payment["status"];
-  reference_label: string | null;
-  notes: string | null;
-  created_at: string;
-};
-
-type TaskRow = {
-  id: string;
-  account_id: string;
-  student_id: string | null;
-  staff_id: string | null;
-  title: string;
-  description: string | null;
-  due_at: string | null;
-  priority: TaskPriority;
-  done: boolean;
-  done_at: string | null;
-  created_at: string;
-};
-
-type ActivityRow = {
-  id: string;
-  student_id: string;
-  kind: StudentActivityKind;
-  title: string;
-  body: string | null;
-  metadata: Record<string, unknown> | null;
-  created_at: string;
-};
-
-type AnnouncementRow = {
-  id: string;
-  kind: NotificationKind;
-  title: string;
-  body: string;
-  href: string | null;
-  published_at: string | null;
-  created_at: string;
-  read: boolean;
-};
-
-const mapUnit = (r: UnitRow): Unit => ({
-  id: r.id,
-  accountId: r.account_id,
-  name: r.name,
-  address: r.address ?? undefined,
-  city: r.city ?? undefined,
-  state: r.state ?? undefined,
-  phone: r.phone ?? undefined,
-  isMain: r.is_main,
-  active: r.active,
-  createdAt: r.created_at,
-});
-
-const mapStaff = (r: StaffRow): Staff => ({
-  id: r.id,
-  accountId: r.account_id,
-  unitId: r.unit_id ?? undefined,
-  authUserId: r.auth_user_id ?? undefined,
-  fullName: r.full_name,
-  cpf: r.cpf ?? undefined,
-  email: r.email ?? undefined,
-  phone: r.phone ?? undefined,
-  role: r.role,
-  roleLabel: r.role_label ?? undefined,
-  startedAt: r.started_at ?? undefined,
-  endedAt: r.ended_at ?? undefined,
-  canRegisterStudents: r.can_register_students,
-  canSendPaymentLinks: r.can_send_payment_links,
-  canCreateWorkouts: r.can_create_workouts,
-  active: r.active,
-  notes: r.notes ?? undefined,
-  accessInvitedAt: r.access_invited_at ?? undefined,
-  accessAcceptedAt: r.access_accepted_at ?? undefined,
-  createdAt: r.created_at,
-});
-
-// Situação do login: com acesso quando já definiu a senha, convite pendente
-// quando há vínculo mas a senha ainda não foi criada.
-export function staffAccessState(member: Staff): StaffAccessState {
-  if (member.authUserId && member.accessAcceptedAt) return "com_acesso";
-  if (member.authUserId) return "convite_pendente";
-  return "sem_acesso";
-}
-
-export type StaffInvite = { setupLink: string; email: string; expiresAt: string };
-
-const mapPlan = (r: PlanRow): Plan => ({
-  id: r.id,
-  accountId: r.account_id,
-  name: r.name,
-  amount: Number(r.amount),
-  frequency: r.frequency,
-  description: r.description ?? undefined,
-  active: r.active,
-  createdAt: r.created_at,
-});
-
-const mapStudent = (r: StudentRow): Student => ({
-  id: r.id,
-  accountId: r.account_id,
-  unitId: r.unit_id ?? undefined,
-  planId: r.plan_id ?? undefined,
-  fullName: r.full_name,
-  cpf: r.cpf ?? undefined,
-  birthDate: r.birth_date ?? undefined,
-  whatsapp: r.whatsapp ?? undefined,
-  email: r.email ?? undefined,
-  medicalNotes: r.medical_notes ?? undefined,
-  emergencyContactName: r.emergency_contact_name ?? undefined,
-  emergencyContactPhone: r.emergency_contact_phone ?? undefined,
-  status: r.status,
-  planStartedAt: r.plan_started_at ?? undefined,
-  notes: r.notes ?? undefined,
-  createdAt: r.created_at,
-  updatedAt: r.updated_at,
-});
-
-const mapPayment = (r: PaymentRow): Payment => ({
-  id: r.id,
-  accountId: r.account_id,
-  studentId: r.student_id,
-  planId: r.plan_id ?? undefined,
-  amount: Number(r.amount),
-  dueAt: r.due_at,
-  paidAt: r.paid_at ?? undefined,
-  method: r.method ?? undefined,
-  status: r.status,
-  referenceLabel: r.reference_label ?? undefined,
-  notes: r.notes ?? undefined,
-  createdAt: r.created_at,
-});
-
-const mapTask = (r: TaskRow): Task => ({
-  id: r.id,
-  accountId: r.account_id,
-  studentId: r.student_id ?? undefined,
-  staffId: r.staff_id ?? undefined,
-  title: r.title,
-  description: r.description ?? undefined,
-  dueAt: r.due_at ?? undefined,
-  priority: r.priority,
-  done: r.done,
-  doneAt: r.done_at ?? undefined,
-  createdAt: r.created_at,
-});
-
-const mapActivity = (r: ActivityRow, by: string): StudentActivity => ({
-  id: r.id,
-  studentId: r.student_id,
-  kind: r.kind,
-  title: r.title,
-  body: r.body ?? undefined,
-  by: (r.metadata?.by as string | undefined) ?? by,
-  at: r.created_at,
-  metadata: r.metadata ?? undefined,
-});
-
-const mapNotification = (r: AnnouncementRow): Notification => ({
-  id: r.id,
-  kind: r.kind,
-  title: r.title,
-  body: r.body,
-  href: r.href ?? undefined,
-  createdAt: r.published_at ?? r.created_at,
-  read: r.read,
-});
+export { staffAccessState };
+export type { StaffInvite };
 
 function mapSubscription(paymentStatus?: string, paymentPlan?: string, nextDueAt?: string): Subscription {
   const status: SubscriptionStatus =
@@ -347,8 +130,33 @@ export type NewStudent = {
   emergencyContactPhone?: string;
   notes?: string;
   status?: StudentStatus;
+  churnReason?: ChurnReason;
+  churnNotes?: string;
 };
 export type StudentPatch = Partial<NewStudent>;
+
+export type SettingsPatch = Partial<Omit<AccountSettings, "digestLastSentOn">>;
+
+type SettingsRow = {
+  revenue_goal: number | string | null;
+  active_students_goal: number | null;
+  digest_enabled: boolean;
+  digest_email: string | null;
+  digest_last_sent_on: string | null;
+};
+
+const DEFAULT_SETTINGS: AccountSettings = { digestEnabled: false };
+
+const mapSettings = (r: SettingsRow | null): AccountSettings =>
+  r
+    ? {
+        revenueGoal: r.revenue_goal === null ? undefined : Number(r.revenue_goal),
+        activeStudentsGoal: r.active_students_goal ?? undefined,
+        digestEnabled: r.digest_enabled,
+        digestEmail: r.digest_email ?? undefined,
+        digestLastSentOn: r.digest_last_sent_on ?? undefined,
+      }
+    : DEFAULT_SETTINGS;
 
 export type NewTask = {
   title: string;
@@ -400,7 +208,10 @@ type Ctx = {
   subscription: Subscription;
   metrics: DashboardMetrics;
   recommendedActions: NextBestAction[];
+  settings: AccountSettings;
+  forecast: MonthForecast;
 
+  riskFor: (studentId: string) => ChurnRisk;
   billingFor: (studentId: string) => StudentBilling;
   studentById: (id: string) => Student | undefined;
   planById: (id?: string) => Plan | undefined;
@@ -410,6 +221,7 @@ type Ctx = {
   activitiesFor: (studentId: string) => StudentActivity[];
 
   updateCompanyProfile: (patch: CompanyProfilePatch) => Promise<boolean>;
+  updateSettings: (patch: SettingsPatch) => Promise<boolean>;
 
   addUnit: (input: NewUnit) => Promise<Unit | null>;
   updateUnit: (id: string, patch: UnitPatch) => Promise<Unit | null>;
@@ -487,6 +299,7 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [activities, setActivities] = useState<StudentActivity[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [settings, setSettings] = useState<AccountSettings>(DEFAULT_SETTINGS);
 
   const fail = useCallback((err: unknown, fallback: string) => {
     const message = describeError(err, fallback);
@@ -504,7 +317,7 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setError(null);
 
-    const [unitsRes, staffRes, plansRes, studentsRes, paymentsRes, tasksRes, activitiesRes] =
+    const [unitsRes, staffRes, plansRes, studentsRes, paymentsRes, tasksRes, activitiesRes, settingsRes] =
       await Promise.all([
         supabase.from("units").select("*").order("created_at", { ascending: true }),
         supabase.from("staff").select("*").order("full_name", { ascending: true }),
@@ -516,6 +329,10 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
           .from("student_activities")
           .select("id, student_id, kind, title, body, metadata, created_at")
           .order("created_at", { ascending: false }),
+        supabase
+          .from("account_settings")
+          .select("revenue_goal, active_students_goal, digest_enabled, digest_email, digest_last_sent_on")
+          .maybeSingle(),
       ]);
 
     const firstError = [unitsRes, staffRes, plansRes, studentsRes, paymentsRes, tasksRes, activitiesRes].find(
@@ -535,6 +352,7 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
     setPayments(((paymentsRes.data ?? []) as PaymentRow[]).map(mapPayment));
     setTasks(((tasksRes.data ?? []) as TaskRow[]).map(mapTask));
     setActivities(((activitiesRes.data ?? []) as ActivityRow[]).map((r) => mapActivity(r, authorName)));
+    setSettings(mapSettings((settingsRes.data ?? null) as SettingsRow | null));
     setLoading(false);
   }, [accountId, authorName]);
 
@@ -625,9 +443,27 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
     };
   }, [accountId, students, billingMap, tasks, staff, plans]);
 
+  const planMap = useMemo(() => new Map(plans.map((p) => [p.id, p])), [plans]);
+
+  const riskMap = useMemo(() => {
+    const map = new Map<string, ChurnRisk>();
+    for (const s of students) {
+      const billing = billingMap.get(s.id) ?? { state: "sem_plano" as const, overdueDays: 0, overdueAmount: 0 };
+      map.set(s.id, computeChurnRisk(s, billing, payments, activities, s.planId ? planMap.get(s.planId) : undefined));
+    }
+    return map;
+  }, [students, billingMap, payments, activities, planMap]);
+
+  const riskFor = useCallback(
+    (studentId: string): ChurnRisk => riskMap.get(studentId) ?? { score: 0, level: "baixo", reasons: [] },
+    [riskMap],
+  );
+
+  const forecast = useMemo(() => monthForecast(payments, students), [payments, students]);
+
   const recommendedActions = useMemo(
-    () => buildNextBestActions({ students, payments, plans, units, staff, tasks, billingFor }),
-    [students, payments, plans, units, staff, tasks, billingFor],
+    () => buildNextBestActions({ students, payments, plans, units, staff, tasks, billingFor, riskFor }),
+    [students, payments, plans, units, staff, tasks, billingFor, riskFor],
   );
 
   const subscription = useMemo(
@@ -1108,6 +944,31 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
     [insertActivity],
   );
 
+  // ───────────── metas e resumo diário ─────────────
+
+  const updateSettings = useCallback(
+    async (patch: SettingsPatch) => {
+      if (!accountId) return false;
+      const row: Record<string, unknown> = { account_id: accountId };
+      if (patch.revenueGoal !== undefined) row.revenue_goal = patch.revenueGoal || null;
+      if (patch.activeStudentsGoal !== undefined) row.active_students_goal = patch.activeStudentsGoal || null;
+      if (patch.digestEnabled !== undefined) row.digest_enabled = patch.digestEnabled;
+      if (patch.digestEmail !== undefined) row.digest_email = nullable(patch.digestEmail?.trim());
+      const { data, error: saveError } = await supabase
+        .from("account_settings")
+        .upsert(row, { onConflict: "account_id" })
+        .select("revenue_goal, active_students_goal, digest_enabled, digest_email, digest_last_sent_on")
+        .single();
+      if (saveError || !data) {
+        fail(saveError, "Não foi possível salvar as preferências.");
+        return false;
+      }
+      setSettings(mapSettings(data as SettingsRow));
+      return true;
+    },
+    [accountId, fail],
+  );
+
   // ───────────── alunos ─────────────
 
   const studentRowFrom = (input: Partial<NewStudent>) => {
@@ -1125,6 +986,8 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
     if (input.emergencyContactPhone !== undefined) row.emergency_contact_phone = nullable(input.emergencyContactPhone);
     if (input.notes !== undefined) row.notes = nullable(input.notes);
     if (input.status !== undefined) row.status = input.status;
+    if (input.churnReason !== undefined) row.churn_reason = nullable(input.churnReason);
+    if (input.churnNotes !== undefined) row.churn_notes = nullable(input.churnNotes);
     return row;
   };
 
@@ -1180,6 +1043,10 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
         await insertActivity(id, {
           kind: "status",
           title: patch.status === "ativo" ? "Aluno reativado" : "Aluno marcado como inativo",
+          body:
+            patch.status === "inativo" && student.churnReason
+              ? `Motivo: ${CHURN_REASON_LABEL[student.churnReason]}${student.churnNotes ? `. ${student.churnNotes}` : "."}`
+              : undefined,
         });
       }
       return student;
@@ -1350,6 +1217,9 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       subscription,
       metrics,
       recommendedActions,
+      settings,
+      forecast,
+      riskFor,
       billingFor,
       studentById,
       planById,
@@ -1358,6 +1228,7 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       paymentsFor,
       activitiesFor,
       updateCompanyProfile,
+      updateSettings,
       addUnit,
       updateUnit,
       removeUnit,
@@ -1403,6 +1274,9 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       subscription,
       metrics,
       recommendedActions,
+      settings,
+      forecast,
+      riskFor,
       billingFor,
       studentById,
       planById,
@@ -1411,6 +1285,7 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       paymentsFor,
       activitiesFor,
       updateCompanyProfile,
+      updateSettings,
       addUnit,
       updateUnit,
       removeUnit,

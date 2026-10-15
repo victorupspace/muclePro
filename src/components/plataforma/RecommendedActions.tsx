@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
   Cake,
+  HeartHandshake,
   CreditCard,
   ExternalLink,
   ListChecks,
@@ -40,6 +41,7 @@ const CTA_ICONS: Record<NextBestActionCta, LucideIcon> = {
   congratulate: Cake,
   link_unit: MapPin,
   open_tasks: ListChecks,
+  talk_to_student: HeartHandshake,
 };
 
 type Props = {
@@ -55,7 +57,7 @@ type Props = {
 export function RecommendedActions({ actions, limit = 5, loading, className, expandable = true }: Props) {
   const router = useRouter();
   const { profile } = useAccountSession();
-  const { students, staff, payments, billingFor, logCharge } = usePlataformaStore();
+  const { students, staff, payments, billingFor, logCharge, addStudentActivity } = usePlataformaStore();
   const { push } = useToast();
 
   const [showAll, setShowAll] = useState(false);
@@ -168,6 +170,19 @@ export function RecommendedActions({ actions, limit = 5, loading, className, exp
       case "open_tasks":
         router.push("/plataforma/tarefas");
         return;
+      case "talk_to_student": {
+        if (!student) return;
+        const text = `Oi ${firstName(student.fullName)}, tudo bem? Aqui é da ${companyName}. Passando para saber como estão os treinos e se tem algo que a gente possa ajustar para você. Conta pra mim!`;
+        if (openWhatsapp(student, text)) {
+          await addStudentActivity(student.id, {
+            kind: "contato",
+            title: "Contato de retenção pelo WhatsApp",
+            body: action.reason,
+          });
+          push({ tone: "success", title: "Contato registrado", description: "Ficou no histórico do aluno." });
+        }
+        return;
+      }
     }
   }
 

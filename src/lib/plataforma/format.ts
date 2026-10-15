@@ -1,6 +1,7 @@
 import type {
   BillingState,
   BusinessType,
+  ChurnReason,
   PaymentMethod,
   PaymentStatus,
   PlanFrequency,
@@ -51,6 +52,16 @@ export function planCadenceLabel(frequency: PlanFrequency) {
   const months = PLAN_FREQUENCY_MONTHS[frequency];
   return months === 1 ? "por mês" : `a cada ${months} meses`;
 }
+
+export const CHURN_REASON_LABEL: Record<ChurnReason, string> = {
+  preco: "Preço",
+  financeiro: "Situação financeira",
+  mudanca: "Mudança de cidade ou bairro",
+  horario: "Horário não encaixa",
+  saude: "Saúde ou lesão",
+  insatisfacao: "Insatisfação com o serviço",
+  outro: "Outro motivo",
+};
 
 export const STUDENT_STATUS_LABEL: Record<StudentStatus, string> = {
   ativo: "Ativo",

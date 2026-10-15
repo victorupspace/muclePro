@@ -68,6 +68,7 @@ export function PlataformaShell({ children }: { children: ReactNode }) {
             fullName={profile.fullName}
             companyName={profile.companyName}
             roleLine={roleLine}
+            showTeamLog={profile.permissions.isManager}
             onSignOut={signOut}
           />
         </aside>
@@ -94,6 +95,7 @@ export function PlataformaShell({ children }: { children: ReactNode }) {
                   fullName={profile.fullName}
                   companyName={profile.companyName}
                   roleLine={roleLine}
+                  showTeamLog={profile.permissions.isManager}
                   onSignOut={signOut}
                   onClose={() => setMobileOpen(false)}
                 />

@@ -1,6 +1,6 @@
 import { computeBilling } from "./billing";
 import { daysFromToday, formatCurrency, isBirthdayToday } from "./format";
-import type { Payment, Plan, Staff, Student, StudentBilling, Task, Unit } from "./types";
+import type { ChurnRisk, Payment, Plan, Staff, Student, StudentBilling, Task, Unit } from "./types";
 
 // Ações recomendadas ao gestor. Cada regra olha para a base e devolve no
 // máximo uma ação por aluno (a mais urgente), para a lista não virar ruído.
@@ -14,7 +14,8 @@ export type NextBestActionType =
   | "missing_emergency_contact"
   | "birthday"
   | "staff_without_unit"
-  | "overdue_task";
+  | "overdue_task"
+  | "churn_risk";
 
 export type NextBestActionCta =
   | "register_payment"
@@ -24,7 +25,8 @@ export type NextBestActionCta =
   | "complete_profile"
   | "congratulate"
   | "link_unit"
-  | "open_tasks";
+  | "open_tasks"
+  | "talk_to_student";
 
 export type NextBestAction = {
   id: string;
@@ -47,6 +49,7 @@ type Input = {
   staff: Staff[];
   tasks: Task[];
   billingFor?: (studentId: string) => StudentBilling;
+  riskFor?: (studentId: string) => ChurnRisk;
 };
 
 const PRIORITY_RANK: Record<NextBestActionPriority, number> = {
@@ -67,6 +70,7 @@ export function buildNextBestActions(input: Input): NextBestAction[] {
     const action =
       overduePaymentAction(student, billing) ??
       noPlanAction(student, billing) ??
+      churnRiskAction(student, input.riskFor?.(student.id)) ??
       dueSoonAction(student, billing) ??
       missingEmergencyContactAction(student) ??
       birthdayAction(student);
@@ -131,6 +135,20 @@ function noPlanAction(student: Student, billing: StudentBilling): NextBestAction
     reason: "Aluno ativo sem plano não gera cobrança. Vincule um plano para iniciar o ciclo.",
     ctaLabel: "Vincular plano",
     ctaAction: "assign_plan",
+    studentId: student.id,
+  };
+}
+
+function churnRiskAction(student: Student, risk?: ChurnRisk): NextBestAction | null {
+  if (!risk || risk.level !== "alto") return null;
+  return {
+    id: `churn-${student.id}`,
+    type: "churn_risk",
+    priority: "high",
+    title: `${student.fullName} pode sair`,
+    reason: `${risk.reasons.slice(0, 2).join(". ")}. Uma conversa agora costuma segurar o aluno.`,
+    ctaLabel: "Falar com o aluno",
+    ctaAction: "talk_to_student",
     studentId: student.id,
   };
 }

@@ -1,5 +1,5 @@
-import { PLAN_FREQUENCY_MONTHS, addMonthsToDateValue, daysFromToday } from "./format";
-import type { Payment, Plan, Student, StudentBilling } from "./types";
+import { PLAN_FREQUENCY_MONTHS, addMonthsToDateValue, daysFromToday, toDateValue, todayValue } from "./format";
+import type { MonthForecast, Payment, Plan, Student, StudentBilling } from "./types";
 
 // Regra de cobrança (v1): cada plano gera uma cobrança por ciclo. Quando a
 // cobrança é paga, a próxima nasce com vencimento = vencimento anterior +
@@ -76,4 +76,36 @@ export function monthlyRecurring(students: Student[], plans: Plan[]) {
     if (!plan) return sum;
     return sum + plan.amount / PLAN_FREQUENCY_MONTHS[plan.frequency];
   }, 0);
+}
+
+// Caixa do mês corrente: o que já entrou, o que ainda deve entrar até o fim
+// do mês e o que está em atraso (de alunos ativos).
+export function monthForecast(payments: Payment[], students: Student[], today = todayValue()): MonthForecast {
+  const [year, month] = today.split("-").map(Number);
+  const monthPrefix = today.slice(0, 7);
+  const lastDay = new Date(year, month, 0).getDate();
+  const monthEnd = `${monthPrefix}-${String(lastDay).padStart(2, "0")}`;
+  const activeIds = new Set(students.filter((s) => s.status === "ativo").map((s) => s.id));
+
+  let received = 0;
+  let dueRest = 0;
+  let overdue = 0;
+  for (const p of payments) {
+    if (p.status === "pago" && p.paidAt && toDateValue(new Date(p.paidAt)).startsWith(monthPrefix)) {
+      received += p.amount;
+    } else if (p.status === "pendente" && activeIds.has(p.studentId)) {
+      if (p.dueAt < today) overdue += p.amount;
+      else if (p.dueAt <= monthEnd) dueRest += p.amount;
+    }
+  }
+
+  const label = new Date(year, month - 1, 1).toLocaleDateString("pt-BR", { month: "long" });
+  return {
+    received,
+    dueRest,
+    overdue,
+    projected: received + dueRest,
+    daysLeft: lastDay - Number(today.slice(8, 10)) + 1,
+    monthLabel: label.charAt(0).toUpperCase() + label.slice(1),
+  };
 }

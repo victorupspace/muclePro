@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ChurnReasonPicker } from "./ChurnReasonModal";
 import { DatePickerField } from "./DatePickerField";
 import { CurrencyInput, Field, inputClass, ModalFooter, SectionLabel, selectClass, textareaClass } from "./FormKit";
 import { Modal } from "./Modal";
@@ -9,7 +10,7 @@ import { maskCPF, maskPhoneBR } from "@/lib/cadastro/masks";
 import { PLAN_FREQUENCY_LABEL, formatCurrency, todayValue } from "@/lib/plataforma/format";
 import { useAccountSession } from "@/lib/plataforma/session";
 import { usePlataformaStore } from "@/lib/plataforma/store";
-import type { Student, StudentStatus } from "@/lib/plataforma/types";
+import type { ChurnReason, Student, StudentStatus } from "@/lib/plataforma/types";
 
 type Props = {
   open: boolean;
@@ -43,6 +44,9 @@ export function StudentFormModal({ open, onClose, student, focusPlan }: Props) {
   const [emergencyPhone, setEmergencyPhone] = useState("");
   const [notes, setNotes] = useState("");
   const [status, setStatus] = useState<StudentStatus>("ativo");
+  const [churnReason, setChurnReason] = useState<ChurnReason | null>(null);
+  const [churnNotes, setChurnNotes] = useState("");
+  const [churnMissing, setChurnMissing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -60,15 +64,23 @@ export function StudentFormModal({ open, onClose, student, focusPlan }: Props) {
     setEmergencyPhone(student?.emergencyContactPhone ?? "");
     setNotes(student?.notes ?? "");
     setStatus(student?.status ?? "ativo");
+    setChurnReason(null);
+    setChurnNotes("");
+    setChurnMissing(false);
   }, [open, student, units, scopeUnitId]);
 
   const activePlans = plans.filter((p) => p.active || p.id === student?.planId);
   const selectedPlan = plans.find((p) => p.id === planId);
   const planChanged = editing && planId !== (student?.planId ?? "");
+  const inactivating = editing && student?.status === "ativo" && status === "inativo";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!fullName.trim()) return;
+    if (inactivating && !churnReason) {
+      setChurnMissing(true);
+      return;
+    }
     setSubmitting(true);
 
     const base = {
@@ -94,7 +106,11 @@ export function StudentFormModal({ open, onClose, student, focusPlan }: Props) {
       return;
     }
 
-    const updated = await updateStudent(student.id, { ...base, status });
+    const updated = await updateStudent(student.id, {
+      ...base,
+      status,
+      ...(inactivating && churnReason ? { churnReason, churnNotes: churnNotes.trim() } : {}),
+    });
     let ok = Boolean(updated);
     if (ok && planChanged) {
       if (planId) {
@@ -277,6 +293,35 @@ export function StudentFormModal({ open, onClose, student, focusPlan }: Props) {
                 <option value="inativo">Inativo</option>
               </select>
             </Field>
+          )}
+          {inactivating && (
+            <div className="space-y-3 rounded-btn border border-ink-200 bg-ink-50/50 p-3">
+              <div>
+                <p className="mb-2 text-[12px] font-semibold text-ink-800">
+                  Por que o aluno está saindo? <span className="text-danger-600">*</span>
+                </p>
+                <ChurnReasonPicker
+                  value={churnReason}
+                  onChange={(v) => {
+                    setChurnReason(v);
+                    setChurnMissing(false);
+                  }}
+                />
+                {churnMissing && (
+                  <p role="alert" className="mt-1.5 text-[11.5px] font-semibold text-danger-600">
+                    Escolha um motivo para inativar o aluno.
+                  </p>
+                )}
+              </div>
+              <Field label="Detalhes da saída" hint="Opcional.">
+                <textarea
+                  value={churnNotes}
+                  onChange={(e) => setChurnNotes(e.target.value)}
+                  rows={2}
+                  className={textareaClass}
+                />
+              </Field>
+            </div>
           )}
         </div>
       </form>

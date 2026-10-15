@@ -7,6 +7,7 @@ import {
   Cake,
   CalendarDays,
   Check,
+  DoorOpen,
   CreditCard,
   HeartPulse,
   Mail,
@@ -15,14 +16,17 @@ import {
   Phone,
   Siren,
   StickyNote,
+  TrendingDown,
   UserRound,
 } from "lucide-react";
 import { PaymentStatusBadge } from "./Badges";
 import { useRevealList } from "./motion";
 import { cn } from "@/lib/cn";
 import { EASE } from "@/lib/motion";
+import { usePlataformaStore } from "@/lib/plataforma/store";
 import {
   BILLING_STATE_LABEL,
+  CHURN_REASON_LABEL,
   PLAN_FREQUENCY_LABEL,
   ageFromBirthDate,
   daysFromToday,
@@ -74,6 +78,8 @@ export function StudentResumoTab({
   const lastActivity = activities[0];
   const hasEmergency = Boolean(student.emergencyContactName && student.emergencyContactPhone);
   const statsRef = useRevealList<HTMLDivElement>([student.id]);
+  const { riskFor } = usePlataformaStore();
+  const risk = riskFor(student.id);
 
   const billingTone =
     student.status === "inativo"
@@ -124,6 +130,36 @@ export function StudentResumoTab({
           hint={lastActivity ? lastActivity.title : "Sem registros"}
         />
       </div>
+
+      {student.status === "ativo" && risk.level !== "baixo" && (
+        <Card
+          title={risk.level === "alto" ? "Risco alto de saída" : "Atenção: risco médio de saída"}
+          icon={<TrendingDown className="h-3.5 w-3.5" strokeWidth={2.4} />}
+          tone={risk.level === "alto" ? "danger" : "warning"}
+        >
+          <ul className="space-y-1 text-[12.5px] leading-[1.5] text-ink-700">
+            {risk.reasons.map((reason) => (
+              <li key={reason} className="flex gap-2">
+                <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-ink-400" />
+                {reason}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2.5 text-[11.5px] text-ink-500">
+            Uma conversa agora vale mais do que uma cobrança depois. Registre o contato no histórico.
+          </p>
+        </Card>
+      )}
+
+      {student.status === "inativo" && student.churnReason && (
+        <Card title="Motivo da saída" icon={<DoorOpen className="h-3.5 w-3.5" strokeWidth={2.4} />}>
+          <p className="text-[14px] font-semibold text-ink-900">{CHURN_REASON_LABEL[student.churnReason]}</p>
+          {student.churnNotes && <p className="mt-1 text-[12.5px] leading-[1.5] text-ink-600">{student.churnNotes}</p>}
+          {student.churnedAt && (
+            <p className="mt-1.5 text-[11.5px] text-ink-500">Inativado em {formatDateLong(student.churnedAt)}</p>
+          )}
+        </Card>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
         <div className="space-y-4">

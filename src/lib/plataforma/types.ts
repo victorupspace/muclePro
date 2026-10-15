@@ -132,6 +132,8 @@ export type Plan = {
 
 export type StudentStatus = "ativo" | "inativo";
 
+export type ChurnReason = "preco" | "mudanca" | "horario" | "saude" | "insatisfacao" | "financeiro" | "outro";
+
 export type Student = {
   id: string;
   accountId: string;
@@ -148,6 +150,9 @@ export type Student = {
   status: StudentStatus;
   planStartedAt?: string;
   notes?: string;
+  churnReason?: ChurnReason;
+  churnNotes?: string;
+  churnedAt?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -239,6 +244,62 @@ export type Notification = {
   createdAt: string;
   read: boolean;
   href?: string;
+};
+
+// ───────────────────────────── metas e resumo diário ───────────────────────
+
+export type AccountSettings = {
+  revenueGoal?: number;
+  activeStudentsGoal?: number;
+  digestEnabled: boolean;
+  digestEmail?: string;
+  digestLastSentOn?: string;
+};
+
+// ───────────────────────────── registro da equipe ──────────────────────────
+
+export type TeamLogEntity = "aluno" | "pagamento" | "plano" | "funcionario" | "unidade" | "tarefa";
+export type TeamLogAction =
+  | "criou"
+  | "editou"
+  | "excluiu"
+  | "recebeu"
+  | "cancelou"
+  | "inativou"
+  | "reativou"
+  | "concluiu"
+  | "acesso";
+
+export type TeamLogEntry = {
+  id: string;
+  createdAt: string;
+  actorUserId?: string;
+  actorName: string;
+  actorRole?: string;
+  entityType: TeamLogEntity;
+  entityId?: string;
+  action: TeamLogAction;
+  summary: string;
+  metadata?: Record<string, unknown>;
+};
+
+// ───────────────────────────── risco e caixa ───────────────────────────────
+
+export type RiskLevel = "alto" | "medio" | "baixo";
+
+export type ChurnRisk = {
+  score: number;
+  level: RiskLevel;
+  reasons: string[];
+};
+
+export type MonthForecast = {
+  received: number;
+  dueRest: number;
+  overdue: number;
+  projected: number;
+  daysLeft: number;
+  monthLabel: string;
 };
 
 // ───────────────────────────── dashboard ───────────────────────────────────

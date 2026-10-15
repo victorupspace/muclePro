@@ -8,7 +8,7 @@ import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { DataTable, TableButton, type Column } from "@/components/admin/DataTable";
 import { EmptyState } from "@/components/admin/EmptyState";
 import { SearchInput, SelectFilter } from "@/components/admin/Filters";
-import { BillingBadge, StudentStatusBadge } from "@/components/plataforma/Badges";
+import { BillingBadge, RiskBadge, StudentStatusBadge } from "@/components/plataforma/Badges";
 import { RegisterPaymentModal } from "@/components/plataforma/PaymentModals";
 import { StudentFormModal } from "@/components/plataforma/StudentFormModal";
 import { useToast } from "@/components/plataforma/Toast";
@@ -16,15 +16,15 @@ import { PageIntro, useRevealRows } from "@/components/plataforma/motion";
 import { onlyDigits } from "@/lib/cadastro/masks";
 import {
   BILLING_STATE_LABEL,
+  CHURN_REASON_LABEL,
   formatCurrency,
   formatDateValue,
-  formatRelative,
   initials,
   planCadenceLabel,
 } from "@/lib/plataforma/format";
 import { useAccountSession } from "@/lib/plataforma/session";
 import { usePlataformaStore } from "@/lib/plataforma/store";
-import type { BillingState, Payment, Student } from "@/lib/plataforma/types";
+import type { BillingState, Payment, RiskLevel, Student } from "@/lib/plataforma/types";
 
 const BILLING_OPTIONS: { value: "all" | BillingState; label: string }[] = [
   { value: "all", label: "Todas as situações" },
@@ -32,6 +32,14 @@ const BILLING_OPTIONS: { value: "all" | BillingState; label: string }[] = [
   { value: "a_vencer", label: BILLING_STATE_LABEL.a_vencer },
   { value: "em_dia", label: BILLING_STATE_LABEL.em_dia },
   { value: "sem_plano", label: BILLING_STATE_LABEL.sem_plano },
+];
+
+const RISK_OPTIONS: { value: "all" | RiskLevel | "atencao"; label: string }[] = [
+  { value: "all", label: "Qualquer risco" },
+  { value: "atencao", label: "Alto e médio" },
+  { value: "alto", label: "Risco alto" },
+  { value: "medio", label: "Risco médio" },
+  { value: "baixo", label: "Risco baixo" },
 ];
 
 const STATUS_OPTIONS = [
@@ -51,19 +59,23 @@ export default function AlunosPage() {
 function AlunosPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { students, plans, units, billingFor, planById, unitById, removeStudent, loading } = usePlataformaStore();
+  const { students, plans, units, billingFor, riskFor, planById, unitById, removeStudent, loading } = usePlataformaStore();
   const { push } = useToast();
   const { profile } = useAccountSession();
   const perms = profile?.permissions;
   const scopedUnit = unitById(profile?.unitScopeId);
 
   const initialBilling = (searchParams.get("situacao") as BillingState | null) ?? "all";
+  const initialRisk = searchParams.get("risco") ?? "all";
 
   const [search, setSearch] = useState("");
   const [billing, setBilling] = useState<string>(
     BILLING_OPTIONS.some((o) => o.value === initialBilling) ? initialBilling : "all",
   );
   const [status, setStatus] = useState<string>("ativo");
+  const [riskFilter, setRiskFilter] = useState<string>(
+    RISK_OPTIONS.some((o) => o.value === initialRisk) ? initialRisk : "all",
+  );
   const [planFilter, setPlanFilter] = useState<string>("all");
   const [unitFilter, setUnitFilter] = useState<string>("all");
   const [addOpen, setAddOpen] = useState(false);
@@ -74,10 +86,18 @@ function AlunosPageContent() {
     const q = search.trim().toLowerCase();
     const qDigits = onlyDigits(q);
     return students
-      .map((student) => ({ student, billing: billingFor(student.id), plan: planById(student.planId), unit: unitById(student.unitId) }))
-      .filter(({ student, billing: b, plan, unit }) => {
+      .map((student) => ({
+        student,
+        billing: billingFor(student.id),
+        risk: riskFor(student.id),
+        plan: planById(student.planId),
+        unit: unitById(student.unitId),
+      }))
+      .filter(({ student, billing: b, risk, plan, unit }) => {
         if (status !== "all" && student.status !== status) return false;
         if (billing !== "all" && b.state !== billing) return false;
+        if (riskFilter === "atencao" && (student.status !== "ativo" || risk.level === "baixo")) return false;
+        if (riskFilter !== "all" && riskFilter !== "atencao" && (student.status !== "ativo" || risk.level !== riskFilter)) return false;
         if (planFilter !== "all" && (plan?.id ?? "none") !== planFilter) return false;
         if (unitFilter !== "all" && (unit?.id ?? "none") !== unitFilter) return false;
         if (!q) return true;
@@ -96,11 +116,15 @@ function AlunosPageContent() {
           const diff = rank(a.billing.state) - rank(b.billing.state);
           if (diff !== 0) return diff;
         }
+        if (riskFilter !== "all") {
+          const diff = b.risk.score - a.risk.score;
+          if (diff !== 0) return diff;
+        }
         return a.student.fullName.localeCompare(b.student.fullName);
       });
-  }, [students, billingFor, planById, unitById, search, status, billing, planFilter, unitFilter]);
+  }, [students, billingFor, riskFor, planById, unitById, search, status, billing, riskFilter, planFilter, unitFilter]);
 
-  const tableRef = useRevealRows<HTMLDivElement>([rows.length, billing, status]);
+  const tableRef = useRevealRows<HTMLDivElement>([rows.length, billing, status, riskFilter]);
 
   const planOptions = useMemo(
     () => [
@@ -205,10 +229,17 @@ function AlunosPageContent() {
       render: ({ unit }) => <span className="text-[12.5px] text-ink-700">{unit?.name ?? "—"}</span>,
     },
     {
-      key: "since",
-      header: "Cadastro",
-      mobileLabel: "Cadastro",
-      render: ({ student }) => <span className="text-[12px] text-ink-500">{formatRelative(student.createdAt)}</span>,
+      key: "risk",
+      header: "Risco de saída",
+      mobileLabel: "Risco",
+      render: ({ student, risk }) =>
+        student.status === "inativo" ? (
+          <span className="text-[12px] text-ink-500">
+            {student.churnReason ? `Saiu: ${CHURN_REASON_LABEL[student.churnReason]}` : "—"}
+          </span>
+        ) : (
+          <RiskBadge level={risk.level} title={risk.reasons.join(" · ") || "Nenhum sinal de risco"} />
+        ),
     },
   ];
 
@@ -248,6 +279,7 @@ function AlunosPageContent() {
         <div className="flex flex-wrap items-center gap-2">
           <SelectFilter label="Situação" value={billing} onChange={setBilling} options={BILLING_OPTIONS} />
           <SelectFilter label="Status" value={status} onChange={setStatus} options={STATUS_OPTIONS} />
+          <SelectFilter label="Risco" value={riskFilter} onChange={setRiskFilter} options={RISK_OPTIONS} />
           <SelectFilter label="Plano" value={planFilter} onChange={setPlanFilter} options={planOptions} />
           {units.length > 1 && !scopedUnit && (
             <SelectFilter label="Unidade" value={unitFilter} onChange={setUnitFilter} options={unitOptions} />

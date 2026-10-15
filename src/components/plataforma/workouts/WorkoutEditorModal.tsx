@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, Copy, Plus, Trash2, X } from "lucide-react";
+import { Archive, ArrowDown, ArrowUp, Copy, Plus, Trash2, X } from "lucide-react";
 import { Field, ModalFooter, inputClass, selectClass, textareaClass } from "../FormKit";
 import { Modal } from "../Modal";
 import { HealthAlert } from "../health/HealthKit";
@@ -41,7 +41,6 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
   const [notes, setNotes] = useState("");
   const [days, setDays] = useState<WorkoutDay[]>([emptyDay(0)]);
   const [activeDay, setActiveDay] = useState(0);
-  const [replaceCurrent, setReplaceCurrent] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,7 +62,6 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
         : [emptyDay(0)],
     );
     setActiveDay(0);
-    setReplaceCurrent(true);
     setError(null);
   }, [open, workout, copyFrom, studentId]);
 
@@ -167,17 +165,20 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
     if (workout) {
       saved = await updateWorkout(workout.id, { ...payload, level: level || ("" as WorkoutLevel) });
     } else {
+      // O banco arquiva a ficha em uso ao gravar a nova.
       saved = await addWorkout({ studentId: student, ...payload, active: true });
-      if (saved && replaceCurrent) {
-        for (const old of currentActive) await updateWorkout(old.id, { active: false });
-      }
     }
     setSubmitting(false);
     if (saved) {
       push({
         tone: "success",
         title: workout ? "Ficha atualizada" : "Ficha criada",
-        description: studentName && !workout ? `${firstName(studentName)} já pode receber pelo WhatsApp ou em PDF.` : undefined,
+        description:
+          studentName && !workout
+            ? currentActive.length > 0
+              ? `A ficha anterior foi para o histórico. ${firstName(studentName)} já pode receber a nova pelo WhatsApp ou em PDF.`
+              : `${firstName(studentName)} já pode receber pelo WhatsApp ou em PDF.`
+            : undefined,
       });
       onClose();
     }
@@ -421,12 +422,12 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
         </Field>
 
         {!editing && currentActive.length > 0 && (
-          <label className="flex items-start gap-2 rounded-btn border border-ink-200 bg-ink-50/60 px-3 py-2.5 text-[12.5px] text-ink-700">
-            <input type="checkbox" checked={replaceCurrent} onChange={(e) => setReplaceCurrent(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[rgb(var(--color-brand))]" />
+          <p className="flex items-start gap-2 rounded-btn border border-ink-200 bg-ink-50/60 px-3 py-2.5 text-[12.5px] leading-[1.5] text-ink-700">
+            <Archive className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-500" strokeWidth={2.2} />
             <span>
-              Arquivar a ficha atual ({currentActive.map((w) => w.title).join(", ")}). Ela continua no histórico do aluno.
+              Ao criar esta ficha, a atual ({currentActive.map((w) => `"${w.title}"`).join(", ")}) é arquivada e vai para o histórico de ciclos.
             </span>
-          </label>
+          </p>
         )}
 
         <datalist id="exercise-library">

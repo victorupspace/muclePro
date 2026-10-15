@@ -52,8 +52,18 @@ export function StudentWorkoutsTab({ student }: { student: Student }) {
   }
 
   async function toggle(w: WorkoutProgram) {
+    const current = active.find((x) => x.id !== w.id);
     const saved = await updateWorkout(w.id, { active: !w.active });
-    if (saved) push({ tone: "info", title: saved.active ? "Ficha reativada" : "Ficha arquivada" });
+    if (!saved) return;
+    push(
+      saved.active
+        ? {
+            tone: "info",
+            title: "Ficha reativada",
+            description: current ? `"${current.title}" foi arquivada e está no histórico de ciclos.` : undefined,
+          }
+        : { tone: "info", title: "Ficha arquivada", description: "Ela continua no histórico de ciclos." },
+    );
   }
 
   const render = (w: WorkoutProgram, defaultOpen: boolean) => (

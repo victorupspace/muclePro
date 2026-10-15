@@ -1147,6 +1147,12 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
     if (data) setTasks((data as TaskRow[]).map(mapTask));
   }, []);
 
+  // Ativar uma ficha arquiva a que estava em uso (regra do banco): relê as fichas.
+  const reloadWorkouts = useCallback(async () => {
+    const { data } = await supabase.from("workout_programs").select("*").order("created_at", { ascending: false });
+    if (data) setWorkouts((data as WorkoutRow[]).map(mapWorkout));
+  }, []);
+
   const workoutRowFrom = (input: WorkoutPatch) => {
     const row: Record<string, unknown> = {};
     if (input.title !== undefined) row.title = input.title.trim();
@@ -1175,10 +1181,11 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       }
       const workout = mapWorkout(data as WorkoutRow);
       setWorkouts((prev) => [workout, ...prev]);
+      if (workout.active) await reloadWorkouts();
       void reloadTasks();
       return workout;
     },
-    [accountId, fail, reloadTasks],
+    [accountId, fail, reloadTasks, reloadWorkouts],
   );
 
   const updateWorkout = useCallback(
@@ -1195,10 +1202,11 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       }
       const workout = mapWorkout(data as WorkoutRow);
       setWorkouts((prev) => prev.map((w) => (w.id === id ? workout : w)));
+      if (patch.active === true) await reloadWorkouts();
       void reloadTasks();
       return workout;
     },
-    [fail, reloadTasks],
+    [fail, reloadTasks, reloadWorkouts],
   );
 
   const removeWorkout = useCallback(

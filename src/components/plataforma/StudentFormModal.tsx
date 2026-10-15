@@ -19,9 +19,13 @@ type Props = {
   student?: Student;
   // Abre direto na seção do plano (usado por "Vincular plano").
   focusPlan?: boolean;
+  // Cadastro novo já preenchido (ex.: matrícula vinda do funil).
+  prefill?: { fullName?: string; whatsapp?: string; email?: string; unitId?: string; notes?: string };
+  title?: string;
+  onCreated?: (student: Student) => void | Promise<void>;
 };
 
-export function StudentFormModal({ open, onClose, student, focusPlan }: Props) {
+export function StudentFormModal({ open, onClose, student, focusPlan, prefill, title, onCreated }: Props) {
   const { units, plans, addStudent, updateStudent, assignPlan } = usePlataformaStore();
   const { push } = useToast();
   const { profile } = useAccountSession();
@@ -51,22 +55,23 @@ export function StudentFormModal({ open, onClose, student, focusPlan }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    setFullName(student?.fullName ?? "");
-    setWhatsapp(student?.whatsapp ?? "");
-    setEmail(student?.email ?? "");
+    setFullName(student?.fullName ?? prefill?.fullName ?? "");
+    setWhatsapp(student?.whatsapp ?? prefill?.whatsapp ?? "");
+    setEmail(student?.email ?? prefill?.email ?? "");
     setCpf(student?.cpf ? maskCPF(student.cpf) : "");
     setBirthDate(student?.birthDate ?? "");
-    setUnitId(scopeUnitId ?? student?.unitId ?? (units.find((u) => u.isMain)?.id ?? units[0]?.id ?? ""));
+    setUnitId(scopeUnitId ?? student?.unitId ?? prefill?.unitId ?? (units.find((u) => u.isMain)?.id ?? units[0]?.id ?? ""));
     setPlanId(student?.planId ?? "");
     setPlanStartedAt(student?.planStartedAt ?? todayValue());
     setMedicalNotes(student?.medicalNotes ?? "");
     setEmergencyName(student?.emergencyContactName ?? "");
     setEmergencyPhone(student?.emergencyContactPhone ?? "");
-    setNotes(student?.notes ?? "");
+    setNotes(student?.notes ?? prefill?.notes ?? "");
     setStatus(student?.status ?? "ativo");
     setChurnReason(null);
     setChurnNotes("");
     setChurnMissing(false);
+    // prefill é lido só ao abrir; mudanças com o modal aberto não reiniciam o formulário.
   }, [open, student, units, scopeUnitId]);
 
   const activePlans = plans.filter((p) => p.active || p.id === student?.planId);
@@ -100,6 +105,7 @@ export function StudentFormModal({ open, onClose, student, focusPlan }: Props) {
       const created = await addStudent({ ...base, planId: planId || undefined, planStartedAt: planId ? planStartedAt : undefined });
       setSubmitting(false);
       if (created) {
+        await onCreated?.(created);
         push({ tone: "success", title: "Aluno cadastrado", description: `${created.fullName} já está na sua base.` });
         onClose();
       }
@@ -130,7 +136,7 @@ export function StudentFormModal({ open, onClose, student, focusPlan }: Props) {
     <Modal
       open={open}
       onClose={onClose}
-      title={editing ? "Editar aluno" : "Novo aluno"}
+      title={title ?? (editing ? "Editar aluno" : "Novo aluno")}
       description={
         editing
           ? "Mantenha contato, plano e informações críticas em dia."

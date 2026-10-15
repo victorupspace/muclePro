@@ -35,6 +35,7 @@ const OWNER_PERMISSIONS: Permissions = {
   canManageUnits: true,
   canDeleteRecords: true,
   canManageCompany: true,
+  canViewReports: true,
 };
 
 function staffPermissions(staff: StaffRow): Permissions {
@@ -49,6 +50,7 @@ function staffPermissions(staff: StaffRow): Permissions {
     canManageUnits: isManager,
     canDeleteRecords: isManager,
     canManageCompany: false,
+    canViewReports: isManager || staff.role === "contabilidade",
   };
 }
 

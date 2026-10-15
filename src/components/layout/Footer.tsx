@@ -17,8 +17,8 @@ const LINKS = {
     { label: "Trabalhe conosco", href: "#careers" },
   ],
   legal: [
-    { label: "Política de privacidade", href: "#privacy" },
-    { label: "Termos de uso", href: "#terms" },
+    { label: "Política de privacidade", href: "/privacidade" },
+    { label: "Termos de uso", href: "/termos" },
   ],
 };
 

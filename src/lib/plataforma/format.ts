@@ -2,6 +2,9 @@ import type {
   BillingState,
   BusinessType,
   ChurnReason,
+  LeadLostReason,
+  LeadSource,
+  LeadStage,
   PaymentMethod,
   PaymentStatus,
   PlanFrequency,
@@ -10,6 +13,7 @@ import type {
   StudentStatus,
   SubscriptionStatus,
   TaskPriority,
+  WorkoutLevel,
 } from "./types";
 
 // ───────────────────────────── rótulos ─────────────────────────────────────
@@ -61,6 +65,50 @@ export const CHURN_REASON_LABEL: Record<ChurnReason, string> = {
   saude: "Saúde ou lesão",
   insatisfacao: "Insatisfação com o serviço",
   outro: "Outro motivo",
+};
+
+export const LEAD_STAGE_LABEL: Record<LeadStage, string> = {
+  novo: "Novo contato",
+  contato: "Em conversa",
+  agendada: "Aula agendada",
+  experimental: "Aula feita",
+  matriculado: "Matriculado",
+  perdido: "Perdido",
+};
+
+export const LEAD_STAGE_HINT: Record<LeadStage, string> = {
+  novo: "Chegou agora. Responda no mesmo dia.",
+  contato: "Conversando. Ofereça a aula experimental.",
+  agendada: "Aula marcada. Confirme na véspera.",
+  experimental: "Já treinou. Hora de fechar o plano.",
+  matriculado: "Virou aluno.",
+  perdido: "Não fechou. O motivo fica registrado.",
+};
+
+export const LEAD_SOURCE_LABEL: Record<LeadSource, string> = {
+  instagram: "Instagram",
+  indicacao: "Indicação",
+  passante: "Passou na porta",
+  whatsapp: "WhatsApp",
+  site: "Site",
+  google: "Google",
+  outro: "Outro",
+};
+
+export const LEAD_LOST_REASON_LABEL: Record<LeadLostReason, string> = {
+  preco: "Achou caro",
+  horario: "Horário não encaixa",
+  distancia: "Longe de casa ou do trabalho",
+  sem_resposta: "Parou de responder",
+  concorrente: "Escolheu outra academia",
+  desistiu: "Desistiu de treinar agora",
+  outro: "Outro motivo",
+};
+
+export const WORKOUT_LEVEL_LABEL: Record<WorkoutLevel, string> = {
+  iniciante: "Iniciante",
+  intermediario: "Intermediário",
+  avancado: "Avançado",
 };
 
 export const STUDENT_STATUS_LABEL: Record<StudentStatus, string> = {

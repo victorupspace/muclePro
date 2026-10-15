@@ -22,6 +22,11 @@ import type {
   CompanyProfilePatch,
   MonthForecast,
   DashboardMetrics,
+  Lead,
+  LeadEvent,
+  LeadLostReason,
+  LeadSource,
+  LeadStage,
   Notification,
   NotificationKind,
   Payment,
@@ -41,11 +46,17 @@ import type {
   Task,
   TaskPriority,
   Unit,
+  WorkoutDay,
+  WorkoutLevel,
+  WorkoutProgram,
 } from "./types";
 
 import {
   mapActivity,
+  mapLead,
+  mapLeadEvent,
   mapNotification,
+  mapWorkout,
   mapPayment,
   mapPlan,
   mapStaff,
@@ -55,6 +66,9 @@ import {
   staffAccessState,
   type ActivityRow,
   type AnnouncementRow,
+  type LeadEventRow,
+  type LeadRow,
+  type WorkoutRow,
   type PaymentRow,
   type PlanRow,
   type StaffInvite,
@@ -135,6 +149,33 @@ export type NewStudent = {
 };
 export type StudentPatch = Partial<NewStudent>;
 
+export type NewLead = {
+  fullName: string;
+  whatsapp?: string;
+  email?: string;
+  source: LeadSource;
+  interest?: string;
+  unitId?: string;
+  ownerStaffId?: string;
+  stage?: LeadStage;
+  trialAt?: string;
+  notes?: string;
+};
+export type LeadPatch = Partial<NewLead & { lostReason: LeadLostReason; lostNotes: string; studentId: string }>;
+
+export type NewWorkout = {
+  studentId: string;
+  title: string;
+  goal?: string;
+  level?: WorkoutLevel;
+  notes?: string;
+  days: WorkoutDay[];
+  startsOn?: string;
+  reviewOn?: string;
+  active?: boolean;
+};
+export type WorkoutPatch = Partial<Omit<NewWorkout, "studentId">>;
+
 export type SettingsPatch = Partial<Omit<AccountSettings, "digestLastSentOn">>;
 
 type SettingsRow = {
@@ -205,6 +246,8 @@ type Ctx = {
   tasks: Task[];
   activities: StudentActivity[];
   notifications: Notification[];
+  leads: Lead[];
+  workouts: WorkoutProgram[];
   subscription: Subscription;
   metrics: DashboardMetrics;
   recommendedActions: NextBestAction[];
@@ -219,6 +262,7 @@ type Ctx = {
   staffById: (id?: string) => Staff | undefined;
   paymentsFor: (studentId: string) => Payment[];
   activitiesFor: (studentId: string) => StudentActivity[];
+  workoutsFor: (studentId: string) => WorkoutProgram[];
 
   updateCompanyProfile: (patch: CompanyProfilePatch) => Promise<boolean>;
   updateSettings: (patch: SettingsPatch) => Promise<boolean>;
@@ -246,6 +290,16 @@ type Ctx = {
   registerPayment: (paymentId: string, input: RegisterPaymentInput) => Promise<boolean>;
   cancelPayment: (paymentId: string) => Promise<boolean>;
   logCharge: (studentId: string, channel: "whatsapp" | "lembrete", payment?: Payment) => Promise<void>;
+
+  addLead: (input: NewLead) => Promise<Lead | null>;
+  updateLead: (id: string, patch: LeadPatch) => Promise<Lead | null>;
+  removeLead: (id: string) => Promise<boolean>;
+  loadLeadEvents: (leadId: string) => Promise<LeadEvent[]>;
+  addLeadEvent: (leadId: string, kind: "nota" | "contato", body: string) => Promise<LeadEvent | null>;
+
+  addWorkout: (input: NewWorkout) => Promise<WorkoutProgram | null>;
+  updateWorkout: (id: string, patch: WorkoutPatch) => Promise<WorkoutProgram | null>;
+  removeWorkout: (id: string) => Promise<boolean>;
 
   addTask: (input: NewTask) => Promise<Task | null>;
   updateTask: (id: string, patch: TaskPatch) => Promise<Task | null>;
@@ -300,6 +354,8 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
   const [activities, setActivities] = useState<StudentActivity[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [settings, setSettings] = useState<AccountSettings>(DEFAULT_SETTINGS);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [workouts, setWorkouts] = useState<WorkoutProgram[]>([]);
 
   const fail = useCallback((err: unknown, fallback: string) => {
     const message = describeError(err, fallback);
@@ -317,7 +373,7 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setError(null);
 
-    const [unitsRes, staffRes, plansRes, studentsRes, paymentsRes, tasksRes, activitiesRes, settingsRes] =
+    const [unitsRes, staffRes, plansRes, studentsRes, paymentsRes, tasksRes, activitiesRes, settingsRes, leadsRes, workoutsRes] =
       await Promise.all([
         supabase.from("units").select("*").order("created_at", { ascending: true }),
         supabase.from("staff").select("*").order("full_name", { ascending: true }),
@@ -333,9 +389,11 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
           .from("account_settings")
           .select("revenue_goal, active_students_goal, digest_enabled, digest_email, digest_last_sent_on")
           .maybeSingle(),
+        supabase.from("leads").select("*").order("stage_changed_at", { ascending: false }),
+        supabase.from("workout_programs").select("*").order("created_at", { ascending: false }),
       ]);
 
-    const firstError = [unitsRes, staffRes, plansRes, studentsRes, paymentsRes, tasksRes, activitiesRes].find(
+    const firstError = [unitsRes, staffRes, plansRes, studentsRes, paymentsRes, tasksRes, activitiesRes, leadsRes, workoutsRes].find(
       (r) => r.error,
     )?.error;
 
@@ -353,6 +411,8 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
     setTasks(((tasksRes.data ?? []) as TaskRow[]).map(mapTask));
     setActivities(((activitiesRes.data ?? []) as ActivityRow[]).map((r) => mapActivity(r, authorName)));
     setSettings(mapSettings((settingsRes.data ?? null) as SettingsRow | null));
+    setLeads(((leadsRes.data ?? []) as LeadRow[]).map(mapLead));
+    setWorkouts(((workoutsRes.data ?? []) as WorkoutRow[]).map(mapWorkout));
     setLoading(false);
   }, [accountId, authorName]);
 
@@ -410,6 +470,11 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
   const activitiesFor = useCallback(
     (studentId: string) => activities.filter((a) => a.studentId === studentId),
     [activities],
+  );
+
+  const workoutsFor = useCallback(
+    (studentId: string) => workouts.filter((w) => w.studentId === studentId),
+    [workouts],
   );
 
   const metrics = useMemo<DashboardMetrics>(() => {
@@ -944,6 +1009,165 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
     [insertActivity],
   );
 
+  // ───────────── funil de matrículas ─────────────
+
+  const leadRowFrom = (input: LeadPatch) => {
+    const row: Record<string, unknown> = {};
+    if (input.fullName !== undefined) row.full_name = input.fullName.trim();
+    if (input.whatsapp !== undefined) row.whatsapp = nullable(input.whatsapp);
+    if (input.email !== undefined) row.email = nullable(input.email);
+    if (input.source !== undefined) row.source = input.source;
+    if (input.interest !== undefined) row.interest = nullable(input.interest);
+    if (input.unitId !== undefined) row.unit_id = nullable(input.unitId);
+    if (input.ownerStaffId !== undefined) row.owner_staff_id = nullable(input.ownerStaffId);
+    if (input.stage !== undefined) row.stage = input.stage;
+    if (input.trialAt !== undefined) row.trial_at = nullable(input.trialAt);
+    if (input.notes !== undefined) row.notes = nullable(input.notes);
+    if (input.lostReason !== undefined) row.lost_reason = nullable(input.lostReason);
+    if (input.lostNotes !== undefined) row.lost_notes = nullable(input.lostNotes);
+    if (input.studentId !== undefined) row.student_id = nullable(input.studentId);
+    return row;
+  };
+
+  const addLead = useCallback(
+    async (input: NewLead) => {
+      if (!accountId) return null;
+      const { data, error: insertError } = await supabase
+        .from("leads")
+        .insert({ account_id: accountId, ...leadRowFrom(input) })
+        .select("*")
+        .single();
+      if (insertError || !data) {
+        fail(insertError, "Não foi possível adicionar o interessado.");
+        return null;
+      }
+      const lead = mapLead(data as LeadRow);
+      setLeads((prev) => [lead, ...prev]);
+      return lead;
+    },
+    [accountId, fail],
+  );
+
+  const updateLead = useCallback(
+    async (id: string, patch: LeadPatch) => {
+      const { data, error: updateError } = await supabase.from("leads").update(leadRowFrom(patch)).eq("id", id).select("*").single();
+      if (updateError || !data) {
+        fail(updateError, "Não foi possível atualizar o interessado.");
+        return null;
+      }
+      const lead = mapLead(data as LeadRow);
+      setLeads((prev) => prev.map((l) => (l.id === id ? lead : l)));
+      return lead;
+    },
+    [fail],
+  );
+
+  const removeLead = useCallback(
+    async (id: string) => {
+      const { error: deleteError } = await supabase.from("leads").delete().eq("id", id);
+      if (deleteError) {
+        fail(deleteError, "Não foi possível excluir o interessado.");
+        return false;
+      }
+      setLeads((prev) => prev.filter((l) => l.id !== id));
+      return true;
+    },
+    [fail],
+  );
+
+  const loadLeadEvents = useCallback(async (leadId: string) => {
+    const { data, error: loadError } = await supabase
+      .from("lead_events")
+      .select("id, lead_id, kind, body, author_name, created_at")
+      .eq("lead_id", leadId)
+      .order("created_at", { ascending: false });
+    if (loadError) return [];
+    return ((data ?? []) as LeadEventRow[]).map(mapLeadEvent);
+  }, []);
+
+  const addLeadEvent = useCallback(
+    async (leadId: string, kind: "nota" | "contato", body: string) => {
+      if (!accountId) return null;
+      const { data, error: insertError } = await supabase
+        .from("lead_events")
+        .insert({ account_id: accountId, lead_id: leadId, kind, body })
+        .select("id, lead_id, kind, body, author_name, created_at")
+        .single();
+      if (insertError || !data) {
+        fail(insertError, "Não foi possível registrar no histórico.");
+        return null;
+      }
+      return mapLeadEvent(data as LeadEventRow);
+    },
+    [accountId, fail],
+  );
+
+  // ───────────── fichas de treino ─────────────
+
+  const workoutRowFrom = (input: WorkoutPatch) => {
+    const row: Record<string, unknown> = {};
+    if (input.title !== undefined) row.title = input.title.trim();
+    if (input.goal !== undefined) row.goal = nullable(input.goal);
+    if (input.level !== undefined) row.level = nullable(input.level);
+    if (input.notes !== undefined) row.notes = nullable(input.notes);
+    if (input.days !== undefined) row.days = input.days;
+    if (input.startsOn !== undefined) row.starts_on = input.startsOn || todayValue();
+    if (input.reviewOn !== undefined) row.review_on = nullable(input.reviewOn);
+    if (input.active !== undefined) row.active = input.active;
+    return row;
+  };
+
+  const addWorkout = useCallback(
+    async (input: NewWorkout) => {
+      if (!accountId) return null;
+      const { data, error: insertError } = await supabase
+        .from("workout_programs")
+        .insert({ account_id: accountId, student_id: input.studentId, ...workoutRowFrom(input) })
+        .select("*")
+        .single();
+      if (insertError || !data) {
+        fail(insertError, "Não foi possível salvar a ficha.");
+        return null;
+      }
+      const workout = mapWorkout(data as WorkoutRow);
+      setWorkouts((prev) => [workout, ...prev]);
+      return workout;
+    },
+    [accountId, fail],
+  );
+
+  const updateWorkout = useCallback(
+    async (id: string, patch: WorkoutPatch) => {
+      const { data, error: updateError } = await supabase
+        .from("workout_programs")
+        .update(workoutRowFrom(patch))
+        .eq("id", id)
+        .select("*")
+        .single();
+      if (updateError || !data) {
+        fail(updateError, "Não foi possível atualizar a ficha.");
+        return null;
+      }
+      const workout = mapWorkout(data as WorkoutRow);
+      setWorkouts((prev) => prev.map((w) => (w.id === id ? workout : w)));
+      return workout;
+    },
+    [fail],
+  );
+
+  const removeWorkout = useCallback(
+    async (id: string) => {
+      const { error: deleteError } = await supabase.from("workout_programs").delete().eq("id", id);
+      if (deleteError) {
+        fail(deleteError, "Não foi possível excluir a ficha.");
+        return false;
+      }
+      setWorkouts((prev) => prev.filter((w) => w.id !== id));
+      return true;
+    },
+    [fail],
+  );
+
   // ───────────── metas e resumo diário ─────────────
 
   const updateSettings = useCallback(
@@ -1214,6 +1438,8 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       tasks,
       activities,
       notifications,
+      leads,
+      workouts,
       subscription,
       metrics,
       recommendedActions,
@@ -1227,6 +1453,7 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       staffById,
       paymentsFor,
       activitiesFor,
+      workoutsFor,
       updateCompanyProfile,
       updateSettings,
       addUnit,
@@ -1248,6 +1475,14 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       registerPayment,
       cancelPayment,
       logCharge,
+      addLead,
+      updateLead,
+      removeLead,
+      loadLeadEvents,
+      addLeadEvent,
+      addWorkout,
+      updateWorkout,
+      removeWorkout,
       addTask,
       updateTask,
       toggleTask,
@@ -1271,6 +1506,8 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       tasks,
       activities,
       notifications,
+      leads,
+      workouts,
       subscription,
       metrics,
       recommendedActions,
@@ -1284,6 +1521,7 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       staffById,
       paymentsFor,
       activitiesFor,
+      workoutsFor,
       updateCompanyProfile,
       updateSettings,
       addUnit,
@@ -1305,6 +1543,14 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       registerPayment,
       cancelPayment,
       logCharge,
+      addLead,
+      updateLead,
+      removeLead,
+      loadLeadEvents,
+      addLeadEvent,
+      addWorkout,
+      updateWorkout,
+      removeWorkout,
       addTask,
       updateTask,
       toggleTask,

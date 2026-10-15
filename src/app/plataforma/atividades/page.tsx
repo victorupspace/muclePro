@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ArrowRightLeft,
   ArrowUpRight,
   Ban,
   CheckCircle2,
   CircleDollarSign,
+  GraduationCap,
   KeyRound,
   Pencil,
   Plus,
@@ -14,17 +16,18 @@ import {
   ShieldAlert,
   Trash2,
   UserMinus,
+  UserX,
   type LucideIcon,
 } from "lucide-react";
 import { EmptyState } from "@/components/admin/EmptyState";
 import { SelectFilter } from "@/components/admin/Filters";
 import { PageIntro, useRevealList } from "@/components/plataforma/motion";
 import { cn } from "@/lib/cn";
-import { CHURN_REASON_LABEL, STAFF_ROLE_LABEL, initials, toDateValue, todayValue } from "@/lib/plataforma/format";
+import { CHURN_REASON_LABEL, LEAD_LOST_REASON_LABEL, STAFF_ROLE_LABEL, initials, toDateValue, todayValue } from "@/lib/plataforma/format";
 import { useAccountSession } from "@/lib/plataforma/session";
 import { usePlataformaStore } from "@/lib/plataforma/store";
 import { supabase } from "@/lib/supabase/client";
-import type { ChurnReason, StaffRole, TeamLogAction, TeamLogEntity, TeamLogEntry } from "@/lib/plataforma/types";
+import type { ChurnReason, LeadLostReason, StaffRole, TeamLogAction, TeamLogEntity, TeamLogEntry } from "@/lib/plataforma/types";
 
 const PAGE_SIZE = 60;
 
@@ -37,7 +40,9 @@ const PERIOD_OPTIONS = [
 const ENTITY_OPTIONS: { value: "all" | TeamLogEntity; label: string }[] = [
   { value: "all", label: "Tudo" },
   { value: "aluno", label: "Alunos" },
+  { value: "lead", label: "Funil de matrículas" },
   { value: "pagamento", label: "Pagamentos" },
+  { value: "treino", label: "Treinos" },
   { value: "plano", label: "Planos" },
   { value: "funcionario", label: "Equipe" },
   { value: "unidade", label: "Unidades" },
@@ -54,6 +59,9 @@ const ACTION_STYLE: Record<TeamLogAction, { icon: LucideIcon; tone: string }> = 
   reativou: { icon: RotateCcw, tone: "bg-success-50 text-success-700" },
   concluiu: { icon: CheckCircle2, tone: "bg-success-50 text-success-700" },
   acesso: { icon: KeyRound, tone: "bg-info-50 text-info-700" },
+  moveu: { icon: ArrowRightLeft, tone: "bg-ink-100 text-ink-700" },
+  matriculou: { icon: GraduationCap, tone: "bg-success-50 text-success-700" },
+  perdeu: { icon: UserX, tone: "bg-danger-50 text-danger-700" },
 };
 
 type LogRow = {
@@ -238,6 +246,10 @@ function TeamLog({ enabled }: { enabled: boolean }) {
         return "/plataforma/configuracoes";
       case "tarefa":
         return "/plataforma/tarefas";
+      case "lead":
+        return `/plataforma/matriculas?lead=${entry.entityId}`;
+      case "treino":
+        return "/plataforma/treinos";
     }
   }
 
@@ -293,7 +305,12 @@ function TeamLog({ enabled }: { enabled: boolean }) {
                   const style = ACTION_STYLE[entry.action];
                   const Icon = style.icon;
                   const href = linkFor(entry);
-                  const reason = entry.metadata?.motivo as ChurnReason | undefined;
+                  const motivo = entry.metadata?.motivo as string | undefined;
+                  const reasonLabel = motivo
+                    ? entry.entityType === "lead"
+                      ? LEAD_LOST_REASON_LABEL[motivo as LeadLostReason]
+                      : CHURN_REASON_LABEL[motivo as ChurnReason]
+                    : undefined;
                   const body = (
                     <>
                       <span className="relative shrink-0">
@@ -319,7 +336,7 @@ function TeamLog({ enabled }: { enabled: boolean }) {
                             {new Date(entry.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                           </span>
                           {entry.actorRole && <span className="uppercase tracking-[0.08em]">{roleLabel(entry.actorRole)}</span>}
-                          {reason && CHURN_REASON_LABEL[reason] && <span>Motivo: {CHURN_REASON_LABEL[reason]}</span>}
+                          {reasonLabel && <span>Motivo: {reasonLabel}</span>}
                         </span>
                       </span>
                       {href && (

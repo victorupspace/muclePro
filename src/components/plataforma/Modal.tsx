@@ -12,7 +12,7 @@ type Props = {
   description?: string;
   children: ReactNode;
   footer?: ReactNode;
-  size?: "md" | "lg";
+  size?: "md" | "lg" | "xl";
 };
 
 export function Modal({ open, onClose, title, description, children, footer, size = "md" }: Props) {
@@ -42,7 +42,7 @@ export function Modal({ open, onClose, title, description, children, footer, siz
               exit={{ opacity: 0, y: 8, scale: 0.99 }}
               transition={{ duration: 0.25, ease: EASE }}
               className={`flex max-h-[calc(100svh-2rem)] w-full flex-col overflow-hidden rounded-panel border border-ink-200 bg-white shadow-[0_30px_70px_-20px_rgba(17,17,17,0.35)] ${
-                size === "lg" ? "max-w-[640px]" : "max-w-[460px]"
+                size === "xl" ? "max-w-[920px]" : size === "lg" ? "max-w-[640px]" : "max-w-[460px]"
               }`}
             >
               <header className="flex shrink-0 items-start justify-between gap-3 border-b border-ink-200 px-5 py-4 sm:px-6">

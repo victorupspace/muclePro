@@ -12,19 +12,29 @@ import type { ChurnReason, Student } from "@/lib/plataforma/types";
 
 export const CHURN_REASONS = Object.keys(CHURN_REASON_LABEL) as ChurnReason[];
 
-// Grade de motivos de saída, usada no modal e no formulário do aluno.
-export function ChurnReasonPicker({ value, onChange }: { value: ChurnReason | null; onChange: (v: ChurnReason) => void }) {
+// Grade de motivos (rádio em cartões). Usada na saída do aluno e na perda de lead.
+export function ReasonPicker<T extends string>({
+  options,
+  value,
+  onChange,
+  label,
+}: {
+  options: { value: T; label: string }[];
+  value: T | null;
+  onChange: (v: T) => void;
+  label: string;
+}) {
   return (
-    <div role="radiogroup" aria-label="Motivo da saída" className="grid gap-1.5 sm:grid-cols-2">
-      {CHURN_REASONS.map((reason) => {
-        const active = value === reason;
+    <div role="radiogroup" aria-label={label} className="grid gap-1.5 sm:grid-cols-2">
+      {options.map((option) => {
+        const active = value === option.value;
         return (
           <button
-            key={reason}
+            key={option.value}
             type="button"
             role="radio"
             aria-checked={active}
-            onClick={() => onChange(reason)}
+            onClick={() => onChange(option.value)}
             className={cn(
               "flex min-h-[40px] items-center gap-2 rounded-btn border px-3 py-2 text-left text-[12.5px] font-semibold transition-colors",
               active
@@ -40,11 +50,22 @@ export function ChurnReasonPicker({ value, onChange }: { value: ChurnReason | nu
             >
               {active && <Check className="h-2.5 w-2.5" strokeWidth={3.2} />}
             </span>
-            {CHURN_REASON_LABEL[reason]}
+            {option.label}
           </button>
         );
       })}
     </div>
+  );
+}
+
+export function ChurnReasonPicker({ value, onChange }: { value: ChurnReason | null; onChange: (v: ChurnReason) => void }) {
+  return (
+    <ReasonPicker
+      label="Motivo da saída"
+      options={CHURN_REASONS.map((r) => ({ value: r, label: CHURN_REASON_LABEL[r] }))}
+      value={value}
+      onChange={onChange}
+    />
   );
 }
 

@@ -22,6 +22,8 @@ export type Permissions = {
   canDeleteRecords: boolean;
   // dados da empresa: só o dono
   canManageCompany: boolean;
+  // relatórios e exportações: gestão e contabilidade
+  canViewReports: boolean;
 };
 
 export type AccountProfile = {
@@ -258,7 +260,7 @@ export type AccountSettings = {
 
 // ───────────────────────────── registro da equipe ──────────────────────────
 
-export type TeamLogEntity = "aluno" | "pagamento" | "plano" | "funcionario" | "unidade" | "tarefa";
+export type TeamLogEntity = "aluno" | "pagamento" | "plano" | "funcionario" | "unidade" | "tarefa" | "lead" | "treino";
 export type TeamLogAction =
   | "criou"
   | "editou"
@@ -268,7 +270,10 @@ export type TeamLogAction =
   | "inativou"
   | "reativou"
   | "concluiu"
-  | "acesso";
+  | "acesso"
+  | "moveu"
+  | "matriculou"
+  | "perdeu";
 
 export type TeamLogEntry = {
   id: string;
@@ -281,6 +286,77 @@ export type TeamLogEntry = {
   action: TeamLogAction;
   summary: string;
   metadata?: Record<string, unknown>;
+};
+
+// ───────────────────────────── funil de matrículas ─────────────────────────
+
+export type LeadStage = "novo" | "contato" | "agendada" | "experimental" | "matriculado" | "perdido";
+export type LeadSource = "instagram" | "indicacao" | "passante" | "whatsapp" | "site" | "google" | "outro";
+export type LeadLostReason = "preco" | "horario" | "distancia" | "sem_resposta" | "concorrente" | "desistiu" | "outro";
+
+export type Lead = {
+  id: string;
+  unitId?: string;
+  ownerStaffId?: string;
+  fullName: string;
+  whatsapp?: string;
+  email?: string;
+  source: LeadSource;
+  interest?: string;
+  stage: LeadStage;
+  trialAt?: string;
+  lostReason?: LeadLostReason;
+  lostNotes?: string;
+  notes?: string;
+  studentId?: string;
+  stageChangedAt: string;
+  convertedAt?: string;
+  createdAt: string;
+};
+
+export type LeadEvent = {
+  id: string;
+  leadId: string;
+  kind: "etapa" | "nota" | "contato";
+  body?: string;
+  authorName?: string;
+  createdAt: string;
+};
+
+// ───────────────────────────── fichas de treino ────────────────────────────
+
+export type WorkoutLevel = "iniciante" | "intermediario" | "avancado";
+
+export type WorkoutExercise = {
+  name: string;
+  sets?: string;
+  reps?: string;
+  load?: string;
+  rest?: string;
+  notes?: string;
+};
+
+export type WorkoutDay = {
+  name: string;
+  focus?: string;
+  exercises: WorkoutExercise[];
+};
+
+export type WorkoutProgram = {
+  id: string;
+  studentId: string;
+  authorStaffId?: string;
+  authorName?: string;
+  title: string;
+  goal?: string;
+  level?: WorkoutLevel;
+  notes?: string;
+  days: WorkoutDay[];
+  startsOn: string;
+  reviewOn?: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
 };
 
 // ───────────────────────────── risco e caixa ───────────────────────────────

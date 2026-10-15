@@ -19,6 +19,14 @@ import type {
   Unit,
   Notification,
   ChurnReason,
+  Lead,
+  LeadEvent,
+  LeadLostReason,
+  LeadSource,
+  LeadStage,
+  WorkoutDay,
+  WorkoutLevel,
+  WorkoutProgram,
 } from "./types";
 
 // ───────────────────────────── linhas do banco ─────────────────────────────
@@ -273,3 +281,99 @@ export const mapNotification = (r: AnnouncementRow): Notification => ({
   read: r.read,
 });
 
+
+// ───────────────────────────── funil e treinos ─────────────────────────────
+
+export type LeadRow = {
+  id: string;
+  account_id: string;
+  unit_id: string | null;
+  owner_staff_id: string | null;
+  full_name: string;
+  whatsapp: string | null;
+  email: string | null;
+  source: LeadSource;
+  interest: string | null;
+  stage: LeadStage;
+  trial_at: string | null;
+  lost_reason: LeadLostReason | null;
+  lost_notes: string | null;
+  notes: string | null;
+  student_id: string | null;
+  stage_changed_at: string;
+  converted_at: string | null;
+  created_at: string;
+};
+
+export const mapLead = (r: LeadRow): Lead => ({
+  id: r.id,
+  unitId: r.unit_id ?? undefined,
+  ownerStaffId: r.owner_staff_id ?? undefined,
+  fullName: r.full_name,
+  whatsapp: r.whatsapp ?? undefined,
+  email: r.email ?? undefined,
+  source: r.source,
+  interest: r.interest ?? undefined,
+  stage: r.stage,
+  trialAt: r.trial_at ?? undefined,
+  lostReason: r.lost_reason ?? undefined,
+  lostNotes: r.lost_notes ?? undefined,
+  notes: r.notes ?? undefined,
+  studentId: r.student_id ?? undefined,
+  stageChangedAt: r.stage_changed_at,
+  convertedAt: r.converted_at ?? undefined,
+  createdAt: r.created_at,
+});
+
+export type LeadEventRow = {
+  id: string;
+  lead_id: string;
+  kind: LeadEvent["kind"];
+  body: string | null;
+  author_name: string | null;
+  created_at: string;
+};
+
+export const mapLeadEvent = (r: LeadEventRow): LeadEvent => ({
+  id: r.id,
+  leadId: r.lead_id,
+  kind: r.kind,
+  body: r.body ?? undefined,
+  authorName: r.author_name ?? undefined,
+  createdAt: r.created_at,
+});
+
+export type WorkoutRow = {
+  id: string;
+  account_id: string;
+  student_id: string;
+  author_staff_id: string | null;
+  author_name: string | null;
+  title: string;
+  goal: string | null;
+  level: WorkoutLevel | null;
+  notes: string | null;
+  days: WorkoutDay[] | null;
+  starts_on: string;
+  review_on: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export const mapWorkout = (r: WorkoutRow): WorkoutProgram => ({
+  id: r.id,
+  studentId: r.student_id,
+  authorStaffId: r.author_staff_id ?? undefined,
+  authorName: r.author_name ?? undefined,
+  title: r.title,
+  goal: r.goal ?? undefined,
+  level: r.level ?? undefined,
+  notes: r.notes ?? undefined,
+  days: Array.isArray(r.days) ? r.days : [],
+  startsOn: r.starts_on,
+  reviewOn: r.review_on ?? undefined,
+  active: r.active,
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+});

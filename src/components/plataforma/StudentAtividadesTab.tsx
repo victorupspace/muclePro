@@ -47,9 +47,11 @@ const DELETABLE: StudentActivityKind[] = ["nota", "contato", "cobranca"];
 export function StudentAtividadesTab({
   activities,
   onDelete,
+  canDelete,
 }: {
   activities: StudentActivity[];
   onDelete: (activityId: string) => void;
+  canDelete: boolean;
 }) {
   const [kind, setKind] = useState<string>("all");
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -83,7 +85,7 @@ export function StudentAtividadesTab({
         <ol ref={listRef} className="relative space-y-0 rounded-card border border-ink-200 bg-white">
           {filtered.map((evt, i) => {
             const Icon = KIND_ICON[evt.kind];
-            const deletable = DELETABLE.includes(evt.kind);
+            const deletable = canDelete && DELETABLE.includes(evt.kind);
             return (
               <li
                 key={evt.id}

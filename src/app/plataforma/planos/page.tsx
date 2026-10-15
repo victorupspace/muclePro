@@ -16,12 +16,15 @@ import {
   formatCurrencyDetailed,
   planCadenceLabel,
 } from "@/lib/plataforma/format";
+import { useAccountSession } from "@/lib/plataforma/session";
 import { usePlataformaStore } from "@/lib/plataforma/store";
 import type { Plan } from "@/lib/plataforma/types";
 
 export default function PlanosPage() {
   const { plans, students, removePlan, updatePlan, loading } = usePlataformaStore();
   const { push } = useToast();
+  const { profile } = useAccountSession();
+  const canManage = Boolean(profile?.permissions.canManagePlans);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Plan | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Plan | null>(null);
@@ -51,6 +54,7 @@ export default function PlanosPage() {
             : "Cada plano tem um valor e uma frequência. Ao vincular um aluno, o ciclo de cobrança começa sozinho."
         }
         actions={
+          canManage ? (
           <button
             type="button"
             onClick={() => {
@@ -62,6 +66,7 @@ export default function PlanosPage() {
             <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
             Novo plano
           </button>
+          ) : undefined
         }
       />
 
@@ -111,6 +116,7 @@ export default function PlanosPage() {
                 aluno{activeStudents === 1 ? "" : "s"} ativo{activeStudents === 1 ? "" : "s"}
               </div>
 
+              {canManage && (
               <div className="mt-4 flex items-center gap-1.5">
                 <button
                   type="button"
@@ -139,6 +145,7 @@ export default function PlanosPage() {
                   <Trash2 className="h-3.5 w-3.5" strokeWidth={2.2} />
                 </button>
               </div>
+              )}
             </article>
           ))}
         </div>

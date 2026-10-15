@@ -7,6 +7,7 @@ import { Modal } from "./Modal";
 import { useToast } from "./Toast";
 import { maskCPF, maskPhoneBR } from "@/lib/cadastro/masks";
 import { PLAN_FREQUENCY_LABEL, formatCurrency, todayValue } from "@/lib/plataforma/format";
+import { useAccountSession } from "@/lib/plataforma/session";
 import { usePlataformaStore } from "@/lib/plataforma/store";
 import type { Student, StudentStatus } from "@/lib/plataforma/types";
 
@@ -22,7 +23,12 @@ type Props = {
 export function StudentFormModal({ open, onClose, student, focusPlan }: Props) {
   const { units, plans, addStudent, updateStudent, assignPlan } = usePlataformaStore();
   const { push } = useToast();
+  const { profile } = useAccountSession();
   const editing = Boolean(student);
+  const scopeUnitId = profile?.unitScopeId;
+  // No cadastro, quem cadastra aluno escolhe o plano (abre o 1º ciclo).
+  // Na edição, trocar plano é ação de cobrança.
+  const canChoosePlan = !editing || Boolean(profile?.permissions.canSendPaymentLinks);
 
   const [fullName, setFullName] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
@@ -46,7 +52,7 @@ export function StudentFormModal({ open, onClose, student, focusPlan }: Props) {
     setEmail(student?.email ?? "");
     setCpf(student?.cpf ? maskCPF(student.cpf) : "");
     setBirthDate(student?.birthDate ?? "");
-    setUnitId(student?.unitId ?? (units.find((u) => u.isMain)?.id ?? units[0]?.id ?? ""));
+    setUnitId(scopeUnitId ?? student?.unitId ?? (units.find((u) => u.isMain)?.id ?? units[0]?.id ?? ""));
     setPlanId(student?.planId ?? "");
     setPlanStartedAt(student?.planStartedAt ?? todayValue());
     setMedicalNotes(student?.medicalNotes ?? "");
@@ -54,7 +60,7 @@ export function StudentFormModal({ open, onClose, student, focusPlan }: Props) {
     setEmergencyPhone(student?.emergencyContactPhone ?? "");
     setNotes(student?.notes ?? "");
     setStatus(student?.status ?? "ativo");
-  }, [open, student, units]);
+  }, [open, student, units, scopeUnitId]);
 
   const activePlans = plans.filter((p) => p.active || p.id === student?.planId);
   const selectedPlan = plans.find((p) => p.id === planId);
@@ -179,6 +185,7 @@ export function StudentFormModal({ open, onClose, student, focusPlan }: Props) {
                 value={planId}
                 onChange={(e) => setPlanId(e.target.value)}
                 autoFocus={focusPlan}
+                disabled={!canChoosePlan}
                 className={selectClass}
               >
                 <option value="">Sem plano por enquanto</option>
@@ -191,8 +198,13 @@ export function StudentFormModal({ open, onClose, student, focusPlan }: Props) {
             </Field>
             {units.length > 0 && (
               <Field label="Unidade">
-                <select value={unitId} onChange={(e) => setUnitId(e.target.value)} className={selectClass}>
-                  <option value="">Sem unidade</option>
+                <select
+                  value={unitId}
+                  onChange={(e) => setUnitId(e.target.value)}
+                  disabled={Boolean(scopeUnitId)}
+                  className={selectClass}
+                >
+                  {!scopeUnitId && <option value="">Sem unidade</option>}
                   {units
                     .filter((u) => u.active || u.id === student?.unitId)
                     .map((u) => (

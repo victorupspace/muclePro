@@ -196,7 +196,7 @@ export default function DefinirSenhaPage() {
             Defina sua senha.
           </h1>
           <p className="mt-3 text-[14px] leading-[1.6] text-ink-500">
-            Crie uma senha usando o link de acesso enviado pelo time musclePro.
+            Crie uma senha usando o link de acesso que você recebeu.
           </p>
         </div>
 

@@ -26,6 +26,7 @@ import {
   isBirthdayToday,
   planCadenceLabel,
 } from "@/lib/plataforma/format";
+import { useAccountSession } from "@/lib/plataforma/session";
 import { usePlataformaStore } from "@/lib/plataforma/store";
 import type { Plan, Student, StudentBilling, StudentStatus, Unit } from "@/lib/plataforma/types";
 
@@ -60,6 +61,9 @@ export function StudentHeader({
   onAssignPlan,
 }: Props) {
   const { updateStudent } = usePlataformaStore();
+  const { profile } = useAccountSession();
+  const canEdit = Boolean(profile?.permissions.canRegisterStudents);
+  const canCharge_ = Boolean(profile?.permissions.canSendPaymentLinks);
   const [status, setStatus] = useState<StudentStatus>(student.status);
   const [saving, setSaving] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
@@ -95,11 +99,12 @@ export function StudentHeader({
   const age = ageFromBirthDate(student.birthDate);
   const birthday = isBirthdayToday(student.birthDate);
   const statusTone = STATUS_TONE[status];
-  const canCharge = student.status === "ativo" && (billing.state === "inadimplente" || billing.state === "a_vencer");
-  const canRegister = student.status === "ativo" && Boolean(billing.nextPayment);
+  const canCharge =
+    canCharge_ && student.status === "ativo" && (billing.state === "inadimplente" || billing.state === "a_vencer");
+  const canRegister = canCharge_ && student.status === "ativo" && Boolean(billing.nextPayment);
 
   const secondaryActions = [
-    { label: "Editar", onClick: onEdit, icon: <Pencil className="h-3.5 w-3.5" strokeWidth={2.2} /> },
+    ...(canEdit ? [{ label: "Editar", onClick: onEdit, icon: <Pencil className="h-3.5 w-3.5" strokeWidth={2.2} /> }] : []),
     { label: "Tarefa", onClick: onAddTask, icon: <ListTodo className="h-3.5 w-3.5" strokeWidth={2.2} /> },
     { label: "Nota", onClick: onAddNote, icon: <StickyNote className="h-3.5 w-3.5" strokeWidth={2.2} /> },
   ];
@@ -185,21 +190,24 @@ export function StudentHeader({
                   <span className="text-ink-500">Sem plano</span>
                 )}
               </span>
-              <button
-                type="button"
-                onClick={onAssignPlan}
-                className="inline-flex h-7 items-center gap-1 rounded-[5px] px-2 text-[11.5px] font-semibold text-brand transition-colors hover:bg-brand/10"
-              >
-                <RefreshCcw className="h-3 w-3" strokeWidth={2.4} />
-                {plan ? "Trocar" : "Vincular"}
-              </button>
+              {canCharge_ && (
+                <button
+                  type="button"
+                  onClick={onAssignPlan}
+                  className="inline-flex h-7 items-center gap-1 rounded-[5px] px-2 text-[11.5px] font-semibold text-brand transition-colors hover:bg-brand/10"
+                >
+                  <RefreshCcw className="h-3 w-3" strokeWidth={2.4} />
+                  {plan ? "Trocar" : "Vincular"}
+                </button>
+              )}
             </InlineField>
 
             <div ref={statusRef} className="relative">
               <InlineField icon={<span className={cn("h-2 w-2 rounded-full", statusTone.dot)} />} label="Status">
                 <button
                   type="button"
-                  onClick={() => setStatusOpen((v) => !v)}
+                  onClick={() => canEdit && setStatusOpen((v) => !v)}
+                  disabled={!canEdit}
                   aria-haspopup="listbox"
                   aria-expanded={statusOpen}
                   className={cn(

@@ -22,6 +22,7 @@ import {
   initials,
   planCadenceLabel,
 } from "@/lib/plataforma/format";
+import { useAccountSession } from "@/lib/plataforma/session";
 import { usePlataformaStore } from "@/lib/plataforma/store";
 import type { BillingState, Payment, Student } from "@/lib/plataforma/types";
 
@@ -52,6 +53,9 @@ function AlunosPageContent() {
   const router = useRouter();
   const { students, plans, units, billingFor, planById, unitById, removeStudent, loading } = usePlataformaStore();
   const { push } = useToast();
+  const { profile } = useAccountSession();
+  const perms = profile?.permissions;
+  const scopedUnit = unitById(profile?.unitScopeId);
 
   const initialBilling = (searchParams.get("situacao") as BillingState | null) ?? "all";
 
@@ -215,8 +219,13 @@ function AlunosPageContent() {
       <PageIntro
         eyebrow="Alunos"
         title="Sua base de alunos"
-        description="Quem está em dia, quem vence esta semana e quem precisa de cobrança. Clique no aluno para ver a ficha completa."
+        description={
+          scopedUnit
+            ? `Alunos da unidade ${scopedUnit.name}. Quem está em dia, quem vence esta semana e quem precisa de cobrança.`
+            : "Quem está em dia, quem vence esta semana e quem precisa de cobrança. Clique no aluno para ver a ficha completa."
+        }
         actions={
+          perms?.canRegisterStudents ? (
           <button
             type="button"
             onClick={() => setAddOpen(true)}
@@ -225,6 +234,7 @@ function AlunosPageContent() {
             <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
             Novo aluno
           </button>
+          ) : undefined
         }
       />
 
@@ -239,7 +249,7 @@ function AlunosPageContent() {
           <SelectFilter label="Situação" value={billing} onChange={setBilling} options={BILLING_OPTIONS} />
           <SelectFilter label="Status" value={status} onChange={setStatus} options={STATUS_OPTIONS} />
           <SelectFilter label="Plano" value={planFilter} onChange={setPlanFilter} options={planOptions} />
-          {units.length > 1 && (
+          {units.length > 1 && !scopedUnit && (
             <SelectFilter label="Unidade" value={unitFilter} onChange={setUnitFilter} options={unitOptions} />
           )}
         </div>
@@ -254,7 +264,11 @@ function AlunosPageContent() {
             nothingYet ? (
               <EmptyState
                 title="Nenhum aluno cadastrado ainda"
-                description="Cadastre o primeiro aluno com plano e contato de emergência. O ciclo de cobrança começa sozinho."
+                description={
+                  perms?.canRegisterStudents
+                    ? "Cadastre o primeiro aluno com plano e contato de emergência. O ciclo de cobrança começa sozinho."
+                    : "Os alunos cadastrados pela equipe aparecem aqui."
+                }
               />
             ) : (
               <EmptyState
@@ -265,7 +279,7 @@ function AlunosPageContent() {
           }
           actions={({ student, billing: b }) => (
             <>
-              {b.nextPayment && student.status === "ativo" ? (
+              {b.nextPayment && student.status === "ativo" && perms?.canSendPaymentLinks ? (
                 <TableButton
                   tone={b.state === "inadimplente" ? "primary" : "ghost"}
                   onClick={() => setPaymentTarget({ student, payment: b.nextPayment! })}
@@ -279,10 +293,12 @@ function AlunosPageContent() {
                   Ver ficha
                 </TableButton>
               )}
-              <TableButton tone="danger" onClick={() => setConfirmDelete(student.id)}>
-                <Trash2 className="h-3.5 w-3.5" strokeWidth={2.2} />
-                Excluir
-              </TableButton>
+              {perms?.canDeleteRecords && (
+                <TableButton tone="danger" onClick={() => setConfirmDelete(student.id)}>
+                  <Trash2 className="h-3.5 w-3.5" strokeWidth={2.2} />
+                  Excluir
+                </TableButton>
+              )}
             </>
           )}
         />

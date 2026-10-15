@@ -24,6 +24,7 @@ import type {
   Plan,
   PlanFrequency,
   Staff,
+  StaffAccessState,
   StaffRole,
   Student,
   StudentActivity,
@@ -70,6 +71,8 @@ type StaffRow = {
   can_create_workouts: boolean;
   active: boolean;
   notes: string | null;
+  access_invited_at: string | null;
+  access_accepted_at: string | null;
   created_at: string;
 };
 
@@ -185,8 +188,20 @@ const mapStaff = (r: StaffRow): Staff => ({
   canCreateWorkouts: r.can_create_workouts,
   active: r.active,
   notes: r.notes ?? undefined,
+  accessInvitedAt: r.access_invited_at ?? undefined,
+  accessAcceptedAt: r.access_accepted_at ?? undefined,
   createdAt: r.created_at,
 });
+
+// Situação do login: com acesso quando já definiu a senha, convite pendente
+// quando há vínculo mas a senha ainda não foi criada.
+export function staffAccessState(member: Staff): StaffAccessState {
+  if (member.authUserId && member.accessAcceptedAt) return "com_acesso";
+  if (member.authUserId) return "convite_pendente";
+  return "sem_acesso";
+}
+
+export type StaffInvite = { setupLink: string; email: string; expiresAt: string };
 
 const mapPlan = (r: PlanRow): Plan => ({
   id: r.id,
@@ -403,6 +418,8 @@ type Ctx = {
   addStaff: (input: NewStaff) => Promise<Staff | null>;
   updateStaff: (id: string, patch: StaffPatch) => Promise<Staff | null>;
   removeStaff: (id: string) => Promise<boolean>;
+  inviteStaffAccess: (id: string, email: string) => Promise<StaffInvite | null>;
+  revokeStaffAccess: (id: string) => Promise<boolean>;
 
   addPlan: (input: NewPlan) => Promise<Plan | null>;
   updatePlan: (id: string, patch: PlanPatch) => Promise<Plan | null>;
@@ -825,6 +842,61 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       return true;
     },
     [fail],
+  );
+
+  // Convite e revogação passam pelo servidor: criam/apagam o login com a
+  // service role, que o navegador nunca vê.
+  const callStaffAccess = useCallback(
+    async (id: string, method: "POST" | "DELETE", body?: Record<string, unknown>) => {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) {
+        fail(null, "Sua sessão expirou. Entre novamente.");
+        return null;
+      }
+      const response = await fetch(`/api/plataforma/staff/${id}/access`, {
+        method,
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const result = (await response.json().catch(() => null)) as
+        | ({ error?: string } & Partial<StaffInvite>)
+        | null;
+      if (!response.ok) {
+        setActionError(result?.error ?? "Não foi possível concluir. Tente novamente.");
+        return null;
+      }
+      return result ?? {};
+    },
+    [fail],
+  );
+
+  const reloadStaffMember = useCallback(async (id: string) => {
+    const { data } = await supabase.from("staff").select("*").eq("id", id).maybeSingle();
+    if (data) {
+      const member = mapStaff(data as StaffRow);
+      setStaff((prev) => prev.map((s) => (s.id === id ? member : s)));
+    }
+  }, []);
+
+  const inviteStaffAccess = useCallback(
+    async (id: string, email: string) => {
+      const result = await callStaffAccess(id, "POST", { email });
+      if (!result?.setupLink) return null;
+      await reloadStaffMember(id);
+      return { setupLink: result.setupLink, email: result.email ?? email, expiresAt: result.expiresAt ?? "" };
+    },
+    [callStaffAccess, reloadStaffMember],
+  );
+
+  const revokeStaffAccess = useCallback(
+    async (id: string) => {
+      const result = await callStaffAccess(id, "DELETE");
+      if (!result) return false;
+      await reloadStaffMember(id);
+      return true;
+    },
+    [callStaffAccess, reloadStaffMember],
   );
 
   // ───────────── planos ─────────────
@@ -1292,6 +1364,8 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       addStaff,
       updateStaff,
       removeStaff,
+      inviteStaffAccess,
+      revokeStaffAccess,
       addPlan,
       updatePlan,
       removePlan,
@@ -1343,6 +1417,8 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       addStaff,
       updateStaff,
       removeStaff,
+      inviteStaffAccess,
+      revokeStaffAccess,
       addPlan,
       updatePlan,
       removePlan,

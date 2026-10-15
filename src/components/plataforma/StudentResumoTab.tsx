@@ -49,6 +49,8 @@ type Props = {
   onAssignPlan: () => void;
   onRegisterPayment: (payment: Payment) => void;
   onToggleTask: (id: string) => void;
+  canEdit: boolean;
+  canCharge: boolean;
 };
 
 export function StudentResumoTab({
@@ -63,6 +65,8 @@ export function StudentResumoTab({
   onAssignPlan,
   onRegisterPayment,
   onToggleTask,
+  canEdit,
+  canCharge,
 }: Props) {
   const age = ageFromBirthDate(student.birthDate);
   const recentPayments = payments.slice(0, 4);
@@ -184,6 +188,7 @@ export function StudentResumoTab({
                 <p className="text-[12.5px] leading-[1.5] text-danger-700">
                   Sem contato de emergência. Em um atendimento, é o dado que mais faz falta.
                 </p>
+                {canEdit && (
                 <button
                   type="button"
                   onClick={onCompleteProfile}
@@ -192,6 +197,7 @@ export function StudentResumoTab({
                   <AlertTriangle className="h-3 w-3" strokeWidth={2.4} />
                   Completar cadastro
                 </button>
+                )}
               </div>
             )}
           </Card>
@@ -208,7 +214,7 @@ export function StudentResumoTab({
             {recentPayments.length === 0 ? (
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-[12.5px] text-ink-500">Nenhuma cobrança ainda.</p>
-                {student.status === "ativo" && (
+                {student.status === "ativo" && canCharge && (
                   <button
                     type="button"
                     onClick={onAssignPlan}
@@ -236,7 +242,7 @@ export function StudentResumoTab({
                       <span className="text-[12.5px] font-semibold tabular-nums text-ink-900">
                         {formatCurrencyDetailed(p.amount)}
                       </span>
-                      {p.status === "pendente" && student.status === "ativo" ? (
+                      {p.status === "pendente" && student.status === "ativo" && canCharge ? (
                         <button
                           type="button"
                           onClick={() => onRegisterPayment(p)}

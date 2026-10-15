@@ -12,7 +12,7 @@ import {
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { clearSessionTimeout, useSessionTimeout } from "@/lib/session-timeout";
-import type { AccountProfile, BusinessType, DocumentType, Permissions } from "./types";
+import type { AccountProfile, BusinessType, DocumentType, Permissions, StaffRole } from "./types";
 
 type Status = "checking" | "authenticated" | "blocked" | "unauthenticated";
 
@@ -26,12 +26,31 @@ type Ctx = {
 const SessionContext = createContext<Ctx | null>(null);
 
 const OWNER_PERMISSIONS: Permissions = {
+  isManager: true,
   canRegisterStudents: true,
   canSendPaymentLinks: true,
   canCreateWorkouts: true,
   canManageTeam: true,
+  canManagePlans: true,
+  canManageUnits: true,
+  canDeleteRecords: true,
   canManageCompany: true,
 };
+
+function staffPermissions(staff: StaffRow): Permissions {
+  const isManager = staff.role === "gestao";
+  return {
+    isManager,
+    canRegisterStudents: isManager || staff.can_register_students,
+    canSendPaymentLinks: isManager || staff.can_send_payment_links,
+    canCreateWorkouts: isManager || staff.can_create_workouts,
+    canManageTeam: isManager,
+    canManagePlans: isManager,
+    canManageUnits: isManager,
+    canDeleteRecords: isManager,
+    canManageCompany: false,
+  };
+}
 
 type AccountRow = {
   id: string;
@@ -54,12 +73,14 @@ type AccountRow = {
 type StaffRow = {
   id: string;
   account_id: string;
+  unit_id: string | null;
   full_name: string;
   email: string | null;
   can_register_students: boolean;
   can_send_payment_links: boolean;
   can_create_workouts: boolean;
-  role: string;
+  role: StaffRole;
+  role_label: string | null;
 };
 
 const ACCOUNT_COLUMNS =
@@ -80,7 +101,7 @@ async function loadProfile(userId: string): Promise<AccountProfile | null> {
 
   const { data: member } = await supabase
     .from("staff")
-    .select("id, account_id, full_name, email, can_register_students, can_send_payment_links, can_create_workouts, role")
+    .select("id, account_id, unit_id, full_name, email, can_register_students, can_send_payment_links, can_create_workouts, role, role_label")
     .eq("auth_user_id", userId)
     .eq("active", true)
     .maybeSingle();
@@ -96,32 +117,41 @@ async function loadProfile(userId: string): Promise<AccountProfile | null> {
 
   if (!account) return null;
 
-  const isManager = staff.role === "gestao";
+  const permissions = staffPermissions(staff);
   return mapProfile(account as AccountRow, userId, {
     isOwner: false,
     staffId: staff.id,
+    staffRole: staff.role,
+    staffRoleLabel: staff.role_label ?? undefined,
+    unitScopeId: permissions.isManager ? undefined : staff.unit_id ?? undefined,
     fullName: staff.full_name,
     email: staff.email ?? undefined,
-    permissions: {
-      canRegisterStudents: isManager || staff.can_register_students,
-      canSendPaymentLinks: isManager || staff.can_send_payment_links,
-      canCreateWorkouts: isManager || staff.can_create_workouts,
-      canManageTeam: isManager,
-      canManageCompany: false,
-    },
+    permissions,
   });
 }
 
 function mapProfile(
   row: AccountRow,
   authUserId: string,
-  extra: { isOwner: boolean; staffId?: string; fullName?: string; email?: string; permissions: Permissions },
+  extra: {
+    isOwner: boolean;
+    staffId?: string;
+    staffRole?: StaffRole;
+    staffRoleLabel?: string;
+    unitScopeId?: string;
+    fullName?: string;
+    email?: string;
+    permissions: Permissions;
+  },
 ): AccountProfile {
   return {
     id: row.id,
     authUserId,
     isOwner: extra.isOwner,
     staffId: extra.staffId,
+    staffRole: extra.staffRole,
+    staffRoleLabel: extra.staffRoleLabel,
+    unitScopeId: extra.unitScopeId,
     permissions: extra.permissions,
     fullName: extra.fullName ?? row.full_name,
     email: extra.email ?? row.email,

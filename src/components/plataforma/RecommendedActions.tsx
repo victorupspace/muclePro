@@ -64,8 +64,28 @@ export function RecommendedActions({ actions, limit = 5, loading, className, exp
   const [editTarget, setEditTarget] = useState<Student | null>(null);
   const [staffTarget, setStaffTarget] = useState<Staff | null>(null);
 
-  const visible = showAll ? actions : actions.slice(0, limit);
-  const critical = actions.filter((a) => a.priority === "critical").length;
+  const perms = profile?.permissions;
+  const allowed = useMemo(
+    () =>
+      actions.filter((a) => {
+        switch (a.ctaAction) {
+          case "send_charge":
+          case "send_reminder":
+          case "register_payment":
+          case "assign_plan":
+            return Boolean(perms?.canSendPaymentLinks);
+          case "complete_profile":
+            return Boolean(perms?.canRegisterStudents);
+          case "link_unit":
+            return Boolean(perms?.canManageTeam);
+          default:
+            return true;
+        }
+      }),
+    [actions, perms],
+  );
+  const visible = showAll ? allowed : allowed.slice(0, limit);
+  const critical = allowed.filter((a) => a.priority === "critical").length;
   const listRef = useRevealList<HTMLUListElement>([visible.length, showAll]);
 
   const companyName = profile?.companyName ?? "nossa equipe";
@@ -153,12 +173,12 @@ export function RecommendedActions({ actions, limit = 5, loading, className, exp
 
   const hint = useMemo(() => {
     if (loading) return "Analisando sua base…";
-    if (actions.length === 0) return "Nada pendente. Sua operação está em dia.";
-    const rest = actions.length - critical;
+    if (allowed.length === 0) return "Nada pendente. Sua operação está em dia.";
+    const rest = allowed.length - critical;
     return critical > 0
       ? `${critical} crítica${critical === 1 ? "" : "s"} · ${rest} para esta semana`
-      : `${actions.length} para esta semana`;
-  }, [loading, actions.length, critical]);
+      : `${allowed.length} para esta semana`;
+  }, [loading, allowed.length, critical]);
 
   return (
     <>
@@ -166,9 +186,9 @@ export function RecommendedActions({ actions, limit = 5, loading, className, exp
         title="Ações recomendadas"
         hint={hint}
         icon={<Sparkles className="h-3.5 w-3.5" strokeWidth={2.4} />}
-        count={actions.length}
-        countTone={critical > 0 ? "danger" : actions.length > 0 ? "warn" : "default"}
-        onSeeAll={expandable && actions.length > limit && !showAll ? () => setShowAll(true) : undefined}
+        count={allowed.length}
+        countTone={critical > 0 ? "danger" : allowed.length > 0 ? "warn" : "default"}
+        onSeeAll={expandable && allowed.length > limit && !showAll ? () => setShowAll(true) : undefined}
         className={className}
       >
         {loading ? (

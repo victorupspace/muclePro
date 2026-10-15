@@ -49,7 +49,7 @@ export function hashPasswordSetupToken(token: string) {
   return hashToken(token);
 }
 
-function hashToken(token: string) {
+export function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
@@ -79,7 +79,7 @@ async function ensureAuthUser(account: AccountAccessRow) {
   return data.user.id;
 }
 
-function buildBaseUrl(req: NextRequest) {
+export function buildBaseUrl(req: NextRequest) {
   const configuredUrl =
     process.env.NEXT_PUBLIC_SITE_URL ??
     process.env.VERCEL_PROJECT_PRODUCTION_URL ??
@@ -102,7 +102,7 @@ function normalizeBaseUrl(value?: string | null) {
   }
 }
 
-async function findUserIdByEmail(email: string) {
+export async function findUserIdByEmail(email: string) {
   const adminClient = createSupabaseAdminClient();
   let page = 1;
 

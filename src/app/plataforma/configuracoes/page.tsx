@@ -27,6 +27,7 @@ export default function ConfiguracoesPage() {
   const { push } = useToast();
 
   const canManage = profile?.permissions.canManageCompany ?? false;
+  const canManageUnits = profile?.permissions.canManageUnits ?? false;
 
   const [companyName, setCompanyName] = useState("");
   const [businessType, setBusinessType] = useState<BusinessType>("academia");
@@ -219,7 +220,7 @@ export default function ConfiguracoesPage() {
                   </p>
                 </div>
               </div>
-              {canManage && (
+              {canManageUnits && (
                 <button
                   type="button"
                   onClick={() => {
@@ -276,7 +277,7 @@ export default function ConfiguracoesPage() {
                           {pupils} aluno{pupils === 1 ? "" : "s"} · {members} funcionário{members === 1 ? "" : "s"}
                         </p>
                       </div>
-                      {canManage && (
+                      {canManageUnits && (
                         <div className="flex shrink-0 items-center gap-1">
                           <button
                             type="button"

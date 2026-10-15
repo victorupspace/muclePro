@@ -33,6 +33,8 @@ export default function PlataformaDashboardPage() {
   const { error, loading, metrics, recommendedActions, tasks, students, toggleTask } = usePlataformaStore();
   const [addStudent, setAddStudent] = useState(false);
   const [addTask, setAddTask] = useState(false);
+  const perms = profile?.permissions;
+  const seesMoney = Boolean(perms?.isManager || perms?.canSendPaymentLinks);
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -99,11 +101,15 @@ export default function PlataformaDashboardPage() {
             hint={`${students.length} cadastrados no total`}
             icon={<Users className="h-3.5 w-3.5" strokeWidth={2.4} />}
             href="/plataforma/alunos"
-            action={{
-              label: "Cadastrar aluno",
-              onClick: () => setAddStudent(true),
-              icon: <UserPlus className="h-3.5 w-3.5" strokeWidth={2.2} />,
-            }}
+            action={
+              perms?.canRegisterStudents
+                ? {
+                    label: "Cadastrar aluno",
+                    onClick: () => setAddStudent(true),
+                    icon: <UserPlus className="h-3.5 w-3.5" strokeWidth={2.2} />,
+                  }
+                : undefined
+            }
             delay={0.05}
           />
           <KpiCard
@@ -149,6 +155,7 @@ export default function PlataformaDashboardPage() {
             }}
             delay={0.25}
           />
+          {seesMoney && (
           <KpiCard
             label="Receita recorrente"
             value={<AnimatedNumber value={metrics.monthlyRecurring} format={formatCurrency} />}
@@ -158,6 +165,7 @@ export default function PlataformaDashboardPage() {
             href="/plataforma/planos"
             delay={0.3}
           />
+          )}
         </div>
       </section>
 

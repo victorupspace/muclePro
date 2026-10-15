@@ -151,6 +151,8 @@ export default function AlunoFichaPage() {
             onAssignPlan={() => setPlanOpen(true)}
             onRegisterPayment={(p) => setPaymentTarget(p)}
             onToggleTask={(id) => void toggleTask(id)}
+            canEdit={Boolean(profile?.permissions.canRegisterStudents)}
+            canCharge={Boolean(profile?.permissions.canSendPaymentLinks)}
           />
         )}
         {tab === "pagamentos" && (
@@ -161,10 +163,15 @@ export default function AlunoFichaPage() {
             onCancel={(p) => cancelPayment(p.id)}
             onAddCharge={() => setChargeOpen(true)}
             onAssignPlan={() => setPlanOpen(true)}
+            canCharge={Boolean(profile?.permissions.canSendPaymentLinks)}
           />
         )}
         {tab === "atividades" && (
-          <StudentAtividadesTab activities={activities} onDelete={(id) => void removeStudentActivity(id)} />
+          <StudentAtividadesTab
+            activities={activities}
+            onDelete={(id) => void removeStudentActivity(id)}
+            canDelete={Boolean(profile?.permissions.canDeleteRecords)}
+          />
         )}
       </div>
 

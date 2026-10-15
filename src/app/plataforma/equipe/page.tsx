@@ -1,20 +1,21 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, Minus, Pencil, Plus, Trash2, UserCog } from "lucide-react";
+import { Check, KeyRound, Minus, Pencil, Plus, Trash2, UserCog } from "lucide-react";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { DataTable, TableButton, type Column } from "@/components/admin/DataTable";
 import { EmptyState } from "@/components/admin/EmptyState";
 import { SearchInput, SelectFilter } from "@/components/admin/Filters";
 import { ActiveBadge, RoleBadge } from "@/components/plataforma/Badges";
+import { StaffAccessDialog } from "@/components/plataforma/StaffAccessDialog";
 import { StaffFormModal } from "@/components/plataforma/StaffFormModal";
 import { useToast } from "@/components/plataforma/Toast";
 import { PageIntro, useRevealRows } from "@/components/plataforma/motion";
 import { cn } from "@/lib/cn";
 import { STAFF_ROLE_LABEL, formatDateValue, initials } from "@/lib/plataforma/format";
 import { useAccountSession } from "@/lib/plataforma/session";
-import { usePlataformaStore } from "@/lib/plataforma/store";
-import type { Staff, StaffRole } from "@/lib/plataforma/types";
+import { staffAccessState, usePlataformaStore } from "@/lib/plataforma/store";
+import type { Staff, StaffAccessState, StaffRole } from "@/lib/plataforma/types";
 
 const ROLE_OPTIONS = [
   { value: "all", label: "Todos os perfis" },
@@ -29,7 +30,7 @@ const STATUS_OPTIONS = [
 
 export default function EquipePage() {
   const { profile } = useAccountSession();
-  const { staff, units, unitById, removeStaff, loading } = usePlataformaStore();
+  const { staff, units, unitById, removeStaff, revokeStaffAccess, loading } = usePlataformaStore();
   const { push } = useToast();
 
   const [search, setSearch] = useState("");
@@ -39,6 +40,7 @@ export default function EquipePage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Staff | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Staff | null>(null);
+  const [accessTarget, setAccessTarget] = useState<Staff | null>(null);
 
   const canManage = profile?.permissions.canManageTeam ?? false;
 
@@ -122,6 +124,12 @@ export default function EquipePage() {
       ),
     },
     {
+      key: "access",
+      header: "Acesso",
+      mobileLabel: "Acesso",
+      render: (m) => <AccessBadge state={staffAccessState(m)} />,
+    },
+    {
       key: "since",
       header: "Entrada",
       mobileLabel: "Entrada",
@@ -140,7 +148,11 @@ export default function EquipePage() {
       <PageIntro
         eyebrow="Equipe"
         title="Quem opera a academia"
-        description="Cada funcionário tem um perfil, uma unidade e o que pode fazer no sistema. As permissões valem quando o funcionário tiver login próprio."
+        description={
+          canManage
+            ? "Cada funcionário tem um perfil, uma unidade e o que pode fazer no sistema. Dê acesso para que ele entre com o próprio login."
+            : "Quem faz parte da equipe e o que cada um pode fazer no sistema."
+        }
         actions={
           canManage ? (
             <button
@@ -192,6 +204,15 @@ export default function EquipePage() {
             canManage
               ? (m) => (
                   <>
+                    {m.id !== profile?.staffId && (
+                      <TableButton
+                        tone={staffAccessState(m) === "sem_acesso" && m.active ? "primary" : "ghost"}
+                        onClick={() => setAccessTarget(m)}
+                      >
+                        <KeyRound className="h-3.5 w-3.5" strokeWidth={2.2} />
+                        {staffAccessState(m) === "sem_acesso" ? "Dar acesso" : "Acesso"}
+                      </TableButton>
+                    )}
                     <TableButton
                       onClick={() => {
                         setEditing(m);
@@ -221,16 +242,27 @@ export default function EquipePage() {
         member={editing ?? undefined}
       />
 
+      <StaffAccessDialog
+        open={!!accessTarget}
+        onClose={() => setAccessTarget(null)}
+        member={accessTarget ? staff.find((s) => s.id === accessTarget.id) ?? accessTarget : undefined}
+      />
+
       <ConfirmDialog
         open={!!confirmDelete}
         title={confirmDelete ? `Excluir ${confirmDelete.fullName}?` : "Excluir funcionário?"}
-        description="O cadastro some da equipe. Se a pessoa só saiu, prefira informar a data de saída e marcar como inativo, para manter o histórico."
+        description={
+          confirmDelete && staffAccessState(confirmDelete) !== "sem_acesso"
+            ? "O cadastro some da equipe e o acesso ao sistema é removido. Se a pessoa só saiu, prefira informar a data de saída e marcar como inativo."
+            : "O cadastro some da equipe. Se a pessoa só saiu, prefira informar a data de saída e marcar como inativo, para manter o histórico."
+        }
         confirmLabel="Excluir funcionário"
         cancelLabel="Manter"
         tone="danger"
         onCancel={() => setConfirmDelete(null)}
         onConfirm={async () => {
           if (confirmDelete) {
+            if (staffAccessState(confirmDelete) !== "sem_acesso") await revokeStaffAccess(confirmDelete.id);
             const ok = await removeStaff(confirmDelete.id);
             if (ok) push({ tone: "info", title: "Funcionário excluído" });
           }
@@ -251,6 +283,26 @@ function PermissionChip({ on, label }: { on: boolean; label: string }) {
       title={on ? `Pode: ${label}` : `Não pode: ${label}`}
     >
       {on ? <Check className="h-2.5 w-2.5" strokeWidth={3} /> : <Minus className="h-2.5 w-2.5" strokeWidth={3} />}
+      {label}
+    </span>
+  );
+}
+
+function AccessBadge({ state }: { state: StaffAccessState }) {
+  const map: Record<StaffAccessState, { label: string; cls: string; dot: string }> = {
+    com_acesso: { label: "Com acesso", cls: "bg-success-50 text-success-700 ring-success-200", dot: "bg-success-500" },
+    convite_pendente: { label: "Convite pendente", cls: "bg-warning-50 text-warning-800 ring-warning-200", dot: "bg-warning-500" },
+    sem_acesso: { label: "Sem acesso", cls: "bg-ink-50 text-ink-500 ring-ink-200", dot: "bg-ink-300" },
+  };
+  const { label, cls, dot } = map[state];
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] ring-1 ring-inset",
+        cls,
+      )}
+    >
+      <span className={cn("h-1.5 w-1.5 rounded-full", dot)} />
       {label}
     </span>
   );

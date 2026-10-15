@@ -30,17 +30,12 @@ export default function LoginPage() {
       return;
     }
 
-    const { data: account, error: accountError } = await supabase
-      .from("accounts")
-      .select("id")
-      .eq("auth_user_id", authData.user.id)
-      .eq("status", "criada")
-      .eq("active", true)
-      .maybeSingle();
+    // Dono da conta ou funcionário com acesso ativo (a função resolve os dois).
+    const { data: accountId, error: accountError } = await supabase.rpc("current_platform_account_id");
 
-    if (accountError || !account) {
+    if (accountError || !accountId) {
       await supabase.auth.signOut();
-      setGlobalError("Sua conta ainda não foi aprovada ou está inativa.");
+      setGlobalError("Seu acesso ainda não foi liberado ou está desativado.");
       return;
     }
 

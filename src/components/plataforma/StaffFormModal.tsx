@@ -237,7 +237,7 @@ export function StaffFormModal({
               checked={active}
               onChange={setActive}
               label="Funcionário ativo"
-              description="Inativos deixam de aparecer nas listas, mas o histórico fica guardado."
+              description="Inativos perdem o acesso ao sistema na hora e saem das listas. O histórico fica guardado."
             />
           )}
         </div>

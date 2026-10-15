@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { EASE } from "@/lib/motion";
 import { SplashScreen } from "@/components/ui/SplashScreen";
+import { STAFF_ROLE_LABEL } from "@/lib/plataforma/format";
 import { useAccountSession } from "@/lib/plataforma/session";
 import { usePlataformaStore } from "@/lib/plataforma/store";
 import { Sidebar } from "./Sidebar";
@@ -53,6 +54,10 @@ export function PlataformaShell({ children }: { children: ReactNode }) {
 
   if (!profile) return null;
 
+  const roleLine = profile.staffRole ? (
+    <RoleLine role={profile.staffRole} label={profile.staffRoleLabel} unitId={profile.unitScopeId} />
+  ) : undefined;
+
   return (
     <>
       <SplashScreen storageKey="musclepro:splash:plataforma" />
@@ -62,6 +67,7 @@ export function PlataformaShell({ children }: { children: ReactNode }) {
           <Sidebar
             fullName={profile.fullName}
             companyName={profile.companyName}
+            roleLine={roleLine}
             onSignOut={signOut}
           />
         </aside>
@@ -87,6 +93,7 @@ export function PlataformaShell({ children }: { children: ReactNode }) {
                 <Sidebar
                   fullName={profile.fullName}
                   companyName={profile.companyName}
+                  roleLine={roleLine}
                   onSignOut={signOut}
                   onClose={() => setMobileOpen(false)}
                 />
@@ -116,4 +123,16 @@ function ActionErrorToaster() {
   }, [actionError, push, clearActionError]);
 
   return null;
+}
+
+// "Recepção · Centro" no menu de quem entra como funcionário.
+function RoleLine({ role, label, unitId }: { role: keyof typeof STAFF_ROLE_LABEL; label?: string; unitId?: string }) {
+  const { unitById } = usePlataformaStore();
+  const unit = unitById(unitId);
+  return (
+    <>
+      {role === "outro" && label ? label : STAFF_ROLE_LABEL[role]}
+      {unit ? ` · ${unit.name}` : ""}
+    </>
+  );
 }

@@ -35,11 +35,13 @@ const SECONDARY: Item[] = [
 type Props = {
   fullName: string;
   companyName?: string;
+  // Ex.: "Recepção · Centro" para funcionários; vazio para o dono.
+  roleLine?: React.ReactNode;
   onSignOut: () => void;
   onClose?: () => void;
 };
 
-export function Sidebar({ fullName, companyName, onSignOut, onClose }: Props) {
+export function Sidebar({ fullName, companyName, roleLine, onSignOut, onClose }: Props) {
   const pathname = usePathname();
   const firstName = fullName.split(" ")[0] ?? fullName;
 
@@ -68,6 +70,11 @@ export function Sidebar({ fullName, companyName, onSignOut, onClose }: Props) {
         <p className="mt-1 truncate text-[14px] font-bold text-ink-900">{firstName}</p>
         {companyName && (
           <p className="truncate text-[11.5px] text-ink-500">{companyName}</p>
+        )}
+        {roleLine && (
+          <p className="mt-1.5 inline-flex max-w-full items-center truncate rounded-full bg-ink-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-600">
+            {roleLine}
+          </p>
         )}
       </div>
 

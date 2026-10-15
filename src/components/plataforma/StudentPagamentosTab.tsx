@@ -20,9 +20,10 @@ type Props = {
   onCancel: (payment: Payment) => Promise<boolean>;
   onAddCharge: () => void;
   onAssignPlan: () => void;
+  canCharge: boolean;
 };
 
-export function StudentPagamentosTab({ student, payments, onRegister, onCancel, onAddCharge, onAssignPlan }: Props) {
+export function StudentPagamentosTab({ student, payments, onRegister, onCancel, onAddCharge, onAssignPlan, canCharge }: Props) {
   const [confirmCancel, setConfirmCancel] = useState<Payment | null>(null);
   const tableRef = useRevealRows<HTMLDivElement>([payments.length]);
 
@@ -120,6 +121,7 @@ export function StudentPagamentosTab({ student, payments, onRegister, onCancel, 
             ? "Nenhuma cobrança registrada."
             : `${payments.length} cobrança${payments.length === 1 ? "" : "s"} no histórico.`}
         </p>
+        {canCharge && (
         <div className="flex gap-2">
           {!student.planId && student.status === "ativo" && (
             <button
@@ -140,6 +142,7 @@ export function StudentPagamentosTab({ student, payments, onRegister, onCancel, 
             Cobrança avulsa
           </button>
         </div>
+        )}
       </div>
 
       <div ref={tableRef}>
@@ -159,7 +162,7 @@ export function StudentPagamentosTab({ student, payments, onRegister, onCancel, 
             />
           }
           actions={(p) =>
-            p.status === "pendente" ? (
+            p.status === "pendente" && canCharge ? (
               <>
                 <TableButton tone="primary" onClick={() => onRegister(p)}>
                   <CreditCard className="h-3.5 w-3.5" strokeWidth={2.2} />

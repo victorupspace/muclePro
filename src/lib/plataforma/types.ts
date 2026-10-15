@@ -6,13 +6,21 @@ export type BusinessType = "academia" | "estudio" | "natacao" | "crossfit" | "lu
 
 export type DocumentType = "cnpj" | "cpf";
 
-// O que o usuário logado pode fazer. O dono da conta tem tudo; funcionários
-// com login herdam as alçadas do próprio cadastro em `staff`.
+// O que o usuário logado pode fazer. Espelha as funções current_* do banco,
+// que são quem de fato aplica as regras (RLS); aqui servem para a interface
+// esconder o que o usuário não pode usar.
 export type Permissions = {
+  // dono da conta ou perfil "gestão"
+  isManager: boolean;
   canRegisterStudents: boolean;
+  // cobranças: criar, receber, cancelar, trocar plano
   canSendPaymentLinks: boolean;
   canCreateWorkouts: boolean;
   canManageTeam: boolean;
+  canManagePlans: boolean;
+  canManageUnits: boolean;
+  canDeleteRecords: boolean;
+  // dados da empresa: só o dono
   canManageCompany: boolean;
 };
 
@@ -21,6 +29,10 @@ export type AccountProfile = {
   authUserId: string;
   isOwner: boolean;
   staffId?: string;
+  staffRole?: StaffRole;
+  staffRoleLabel?: string;
+  // Unidade que limita o que o funcionário enxerga (undefined = todas).
+  unitScopeId?: string;
   permissions: Permissions;
   fullName: string;
   email: string;
@@ -93,8 +105,13 @@ export type Staff = {
   canCreateWorkouts: boolean;
   active: boolean;
   notes?: string;
+  accessInvitedAt?: string;
+  accessAcceptedAt?: string;
   createdAt: string;
 };
+
+// Situação do login do funcionário.
+export type StaffAccessState = "sem_acesso" | "convite_pendente" | "com_acesso";
 
 // ───────────────────────────── planos ──────────────────────────────────────
 

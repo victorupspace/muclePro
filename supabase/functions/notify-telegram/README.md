@@ -69,12 +69,11 @@ Content-Type: application/json
 
 Crie webhooks para estas tabelas:
 
-- `public.hero_form_submissions`
-- `public.accounts`
-- `public.commercializer_leads`
+- `public.hero_form_submissions` (lead do formulario da home: nome, telefone, e-mail, tipo de estabelecimento, unidades, alunos ativos)
+- `public.accounts` (cadastro de estabelecimento pela tela `/cadastro`: estabelecimento, tipo, responsavel, telefone, e-mail, documento)
 
-A funcao ignora `commercializer_leads` com `source = landing`, porque esse mesmo envio ja gera notificacao pela tabela `hero_form_submissions`.
+Inserts em qualquer outra tabela sao ignorados pela funcao.
 
 ## 6. Teste
 
-Envie um cadastro pelo Hero ou pela tela `/cadastro`. Voce deve receber uma mensagem no Telegram em poucos segundos.
+Envie um lead pelo formulario da home ou um cadastro pela tela `/cadastro`. Voce deve receber uma mensagem no Telegram em poucos segundos.

@@ -1,14 +1,4 @@
-import type {
-  AccountKind,
-  ComercializadoraStatus,
-  LandingLeadKind,
-  PaymentStatus,
-} from "./types";
-
-export const ACCOUNT_KIND_LABEL: Record<AccountKind, string> = {
-  consultor: "Consultor",
-  comercializadora: "Comercializadora",
-};
+import type { BusinessType, LeadStatus, PaymentStatus } from "./types";
 
 export const PAYMENT_LABEL: Record<PaymentStatus, string> = {
   em_dia: "Em dia",
@@ -19,18 +9,54 @@ export const PAYMENT_LABEL: Record<PaymentStatus, string> = {
   nao_iniciado: "Não iniciado",
 };
 
-export const LEAD_STATUS_LABEL: Record<ComercializadoraStatus, string> = {
+export const LEAD_STATUS_LABEL: Record<LeadStatus, string> = {
   aguardando: "Aguardando contato",
   em_contato: "Em contato",
   convertida: "Convertida",
   perdida: "Perdida",
 };
 
-export const LANDING_LEAD_KIND_LABEL: Record<LandingLeadKind, string> = {
-  consultor: "Consultor",
-  comercializadora: "Comercializadora",
-  consumidor: "Consumidor final",
+export const BUSINESS_TYPE_LABEL: Record<BusinessType, string> = {
+  academia: "Academia de musculação",
+  estudio: "Estúdio (funcional, pilates, yoga)",
+  natacao: "Escola de natação",
+  crossfit: "Box de crossfit",
+  lutas: "Academia de lutas ou jiu-jitsu",
+  outro: "Outro negócio de saúde",
 };
+
+// Faixas informadas no formulário da home (valores livres no banco).
+export const UNITS_RANGE_LABEL: Record<string, string> = {
+  "1": "1 unidade",
+  "2-5": "2 a 5",
+  "6+": "6 ou mais",
+};
+
+export const STUDENTS_RANGE_LABEL: Record<string, string> = {
+  "ate-100": "Até 100",
+  "100-300": "100 a 300",
+  "300-1000": "300 a 1.000",
+  "1000+": "Mais de 1.000",
+};
+
+function isBusinessType(value: string): value is BusinessType {
+  return value in BUSINESS_TYPE_LABEL;
+}
+
+export function businessTypeLabel(value?: string | null) {
+  if (!value) return "—";
+  return isBusinessType(value) ? BUSINESS_TYPE_LABEL[value] : value;
+}
+
+export function unitsRangeLabel(value?: string | null) {
+  if (!value) return "—";
+  return UNITS_RANGE_LABEL[value] ?? value;
+}
+
+export function studentsRangeLabel(value?: string | null) {
+  if (!value) return "—";
+  return STUDENTS_RANGE_LABEL[value] ?? value;
+}
 
 export function formatDateTime(iso: string) {
   const d = new Date(iso);

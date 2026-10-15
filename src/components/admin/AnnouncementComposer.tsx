@@ -16,7 +16,6 @@ import { cn } from "@/lib/cn";
 import { EASE } from "@/lib/motion";
 import type {
   Announcement,
-  AnnouncementAudience,
   AnnouncementInput,
   AnnouncementKind,
 } from "@/lib/admin/announcements";
@@ -26,12 +25,6 @@ const KIND_OPTIONS: { value: AnnouncementKind; label: string; description: strin
   { value: "lead", label: "Lead", description: "Novas oportunidades e indicações", icon: UserPlus },
   { value: "tarefa", label: "Tarefa", description: "Lembretes e prazos importantes", icon: ListTodo },
   { value: "pagamento", label: "Pagamento", description: "Faturamento e cobrança", icon: CreditCard },
-];
-
-const AUDIENCE_OPTIONS: { value: AnnouncementAudience; label: string; description: string }[] = [
-  { value: "all", label: "Todos os perfis", description: "Consultores e comercializadoras" },
-  { value: "consultor", label: "Apenas consultores", description: "Foca em quem opera consultoria" },
-  { value: "comercializadora", label: "Apenas comercializadoras", description: "Foca em comercializadoras parceiras" },
 ];
 
 const KIND_TONE: Record<AnnouncementKind, { wrap: string; icon: string }> = {
@@ -56,7 +49,6 @@ const EMPTY: AnnouncementInput = {
   title: "",
   body: "",
   href: null,
-  audience: "all",
   expiresAt: null,
   publishNow: true,
 };
@@ -86,7 +78,6 @@ export function AnnouncementComposer({ open, mode, initial, onClose, onSubmit }:
         title: initial.title,
         body: initial.body,
         href: initial.href,
-        audience: initial.audience,
         expiresAt: initial.expiresAt,
         publishNow: !!initial.publishedAt,
       });
@@ -148,7 +139,7 @@ export function AnnouncementComposer({ open, mode, initial, onClose, onSubmit }:
                   {mode === "edit" ? "Editar anúncio" : "Emitir anúncio"}
                 </h2>
                 <p className="mt-1 hidden text-[12px] text-ink-500 sm:block">
-                  Tudo o que for publicado aparece para os usuários elegíveis dentro da plataforma.
+                  Tudo o que for publicado aparece para todos os estabelecimentos dentro da plataforma.
                 </p>
               </div>
               <button
@@ -247,39 +238,7 @@ export function AnnouncementComposer({ open, mode, initial, onClose, onSubmit }:
                   />
                 </Field>
 
-                <Field label="Audiência">
-                  <div className="flex flex-col gap-1.5">
-                    {AUDIENCE_OPTIONS.map((opt) => {
-                      const active = form.audience === opt.value;
-                      return (
-                        <label
-                          key={opt.value}
-                          className={cn(
-                            "flex cursor-pointer items-center justify-between gap-3 rounded-btn border px-3 py-2 transition-colors",
-                            active
-                              ? "border-ink-900 bg-ink-50"
-                              : "border-ink-200 bg-white hover:border-ink-300",
-                          )}
-                        >
-                          <div className="min-w-0">
-                            <p className="text-[12.5px] font-semibold text-ink-900">{opt.label}</p>
-                            <p className="text-[11px] text-ink-500">{opt.description}</p>
-                          </div>
-                          <input
-                            type="radio"
-                            name="audience"
-                            value={opt.value}
-                            checked={active}
-                            onChange={() => setForm((f) => ({ ...f, audience: opt.value }))}
-                            className="accent-brand"
-                          />
-                        </label>
-                      );
-                    })}
-                  </div>
-                </Field>
-
-                <Field label="Expira em" hint="Opcional. Após a data, o anúncio some do sino dos consultores.">
+                <Field label="Expira em" hint="Opcional. Após a data, o anúncio some do sino dos estabelecimentos.">
                   <input
                     type="datetime-local"
                     value={toLocalInputValue(form.expiresAt)}

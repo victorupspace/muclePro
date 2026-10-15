@@ -5,14 +5,16 @@ import { useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { EASE } from "@/lib/motion";
 import { SplashScreen } from "@/components/ui/SplashScreen";
-import { useConsultorSession } from "@/lib/plataforma/session";
+import { useAccountSession } from "@/lib/plataforma/session";
+import { usePlataformaStore } from "@/lib/plataforma/store";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
+import { useToast } from "./Toast";
 
 export function PlataformaShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { profile, status, signOut } = useConsultorSession();
+  const { profile, status, signOut } = useAccountSession();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
@@ -34,7 +36,8 @@ export function PlataformaShell({ children }: { children: ReactNode }) {
             Sua conta ainda não está liberada.
           </h1>
           <p className="mt-3 text-[14px] leading-[1.6] text-ink-500">
-            O acesso à plataforma depende da aprovação do time musclePro no backoffice.
+            O time musclePro confere cada cadastro antes de liberar o painel. Você recebe o
+            link de acesso assim que a conta for aprovada.
           </p>
           <button
             type="button"
@@ -53,6 +56,7 @@ export function PlataformaShell({ children }: { children: ReactNode }) {
   return (
     <>
       <SplashScreen storageKey="musclepro:splash:plataforma" />
+      <ActionErrorToaster />
       <div className="flex min-h-svh bg-surface">
         <aside className="sticky top-0 hidden h-svh w-[248px] shrink-0 border-r border-ink-200 bg-white lg:flex lg:flex-col">
           <Sidebar
@@ -98,4 +102,18 @@ export function PlataformaShell({ children }: { children: ReactNode }) {
       </div>
     </>
   );
+}
+
+// Toda falha de escrita no store vira um toast, em qualquer tela.
+function ActionErrorToaster() {
+  const { actionError, clearActionError } = usePlataformaStore();
+  const { push } = useToast();
+
+  useEffect(() => {
+    if (!actionError) return;
+    push({ tone: "warn", title: "Não deu certo", description: actionError });
+    clearActionError();
+  }, [actionError, push, clearActionError]);
+
+  return null;
 }

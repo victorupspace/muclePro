@@ -12,29 +12,30 @@ import {
 import { supabase } from "@/lib/supabase/client";
 import type {
   Account,
-  AccountKind,
   AccountStatus,
-  ComercializadoraLead,
-  ComercializadoraStatus,
+  BusinessType,
   DocumentKind,
   HistoryEvent,
   LandingLead,
-  LandingLeadKind,
-  LandingLeadStatus,
+  LeadStatus,
   PaymentStatus,
 } from "./types";
 
 type AccountRow = {
   id: string;
   created_at: string;
-  kind: AccountKind;
   full_name: string;
   email: string;
   phone: string;
   document_type: DocumentKind;
   document: string;
   company_name: string | null;
+  business_type: BusinessType | null;
   address: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  units_range: string | null;
+  active_students_range: string | null;
   status: AccountStatus;
   active: boolean;
   approved_at: string | null;
@@ -45,35 +46,23 @@ type AccountRow = {
   payment_last_paid_at: string | null;
 };
 
-type CommercializerLeadRow = {
-  id: string;
-  created_at: string;
-  full_name: string;
-  email: string;
-  phone: string;
-  status: ComercializadoraStatus;
-};
-
 type LandingLeadRow = {
   id: string;
   created_at: string;
   full_name: string;
   email: string;
   phone: string;
-  client_type: LandingLeadKind;
-  regions: string[] | null;
-  has_partner_network: boolean | null;
-  commercializer_size: string | null;
-  segment: string | null;
-  monthly_energy_spend: string | null;
-  status: LandingLeadStatus;
+  business_type: BusinessType;
+  units_range: string | null;
+  active_students_range: string | null;
+  status: LeadStatus;
   handled_at: string | null;
 };
 
 type AuditEventRow = {
   id: string;
   created_at: string;
-  resource_type: "account" | "commercializer_lead" | "hero_form_submission";
+  resource_type: "account" | "hero_form_submission";
   resource_id: string;
   label: string;
   actor_label: string | null;
@@ -81,7 +70,6 @@ type AuditEventRow = {
 
 type Ctx = {
   accounts: Account[];
-  leads: ComercializadoraLead[];
   landingLeads: LandingLead[];
   loading: boolean;
   error: string | null;
@@ -92,9 +80,7 @@ type Ctx = {
   remove: (id: string) => Promise<void>;
   setPaymentStatus: (id: string, status: PaymentStatus) => Promise<void>;
   markPaid: (id: string) => Promise<void>;
-  setLeadStatus: (id: string, status: ComercializadoraStatus) => Promise<void>;
-  removeLead: (id: string) => Promise<void>;
-  setLandingLeadStatus: (id: string, status: LandingLeadStatus) => Promise<void>;
+  setLandingLeadStatus: (id: string, status: LeadStatus) => Promise<void>;
   removeLandingLead: (id: string) => Promise<void>;
 };
 
@@ -121,14 +107,18 @@ function sortedHistory(history: HistoryEvent[]) {
 function mapAccount(row: AccountRow, eventsByResource: Record<string, HistoryEvent[]>): Account {
   return {
     id: row.id,
-    kind: row.kind,
     fullName: row.full_name,
     email: row.email,
     phone: row.phone,
     documentKind: row.document_type,
     document: row.document,
     companyName: row.company_name ?? undefined,
+    businessType: row.business_type ?? undefined,
     address: row.address ?? undefined,
+    contactPhone: row.contact_phone ?? undefined,
+    contactEmail: row.contact_email ?? undefined,
+    unitsRange: row.units_range ?? undefined,
+    activeStudentsRange: row.active_students_range ?? undefined,
     createdAt: row.created_at,
     approvedAt: row.approved_at ?? undefined,
     status: row.status,
@@ -147,24 +137,6 @@ function mapAccount(row: AccountRow, eventsByResource: Record<string, HistoryEve
   };
 }
 
-function mapLead(
-  row: CommercializerLeadRow,
-  eventsByResource: Record<string, HistoryEvent[]>,
-): ComercializadoraLead {
-  return {
-    id: row.id,
-    fullName: row.full_name,
-    email: row.email,
-    phone: row.phone,
-    requestedAt: row.created_at,
-    status: row.status,
-    history: sortedHistory([
-      ...(eventsByResource[`commercializer_lead:${row.id}`] ?? []),
-      { id: `${row.id}:created`, at: row.created_at, label: "Solicitação recebida" },
-    ]),
-  };
-}
-
 function mapLandingLead(
   row: LandingLeadRow,
   eventsByResource: Record<string, HistoryEvent[]>,
@@ -174,18 +146,15 @@ function mapLandingLead(
     fullName: row.full_name,
     email: row.email,
     phone: row.phone,
-    clientType: row.client_type,
-    regions: row.regions ?? [],
-    hasPartnerNetwork: row.has_partner_network,
-    commercializerSize: row.commercializer_size,
-    segment: row.segment,
-    monthlyEnergySpend: row.monthly_energy_spend,
+    businessType: row.business_type,
+    unitsRange: row.units_range ?? undefined,
+    activeStudentsRange: row.active_students_range ?? undefined,
     requestedAt: row.created_at,
     status: row.status,
     handledAt: row.handled_at ?? undefined,
     history: sortedHistory([
       ...(eventsByResource[`hero_form_submission:${row.id}`] ?? []),
-      { id: `${row.id}:created`, at: row.created_at, label: "Diagnóstico recebido" },
+      { id: `${row.id}:created`, at: row.created_at, label: "Lead recebido" },
     ]),
   };
 }
@@ -200,7 +169,6 @@ async function getActor() {
 
 export function AdminStoreProvider({ children }: { children: ReactNode }) {
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [leads, setLeads] = useState<ComercializadoraLead[]>([]);
   const [landingLeads, setLandingLeads] = useState<LandingLead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -209,23 +177,20 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setError(null);
 
-    const [accountsResult, leadsResult, landingLeadsResult, eventsResult] = await Promise.all([
+    const [accountsResult, landingLeadsResult, eventsResult] = await Promise.all([
       supabase.from("accounts").select("*").order("created_at", { ascending: false }),
-      supabase.from("commercializer_leads").select("*").order("created_at", { ascending: false }),
       supabase.from("hero_form_submissions").select("*").order("created_at", { ascending: false }),
       supabase.from("audit_events").select("*").order("created_at", { ascending: false }),
     ]);
 
-    if (accountsResult.error || leadsResult.error || landingLeadsResult.error || eventsResult.error) {
+    if (accountsResult.error || landingLeadsResult.error || eventsResult.error) {
       setError(
         accountsResult.error?.message ??
-          leadsResult.error?.message ??
           landingLeadsResult.error?.message ??
           eventsResult.error?.message ??
           "Não foi possível carregar o backoffice.",
       );
       setAccounts([]);
-      setLeads([]);
       setLandingLeads([]);
       setLoading(false);
       return;
@@ -233,7 +198,6 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
 
     const eventsByResource = groupEvents((eventsResult.data ?? []) as AuditEventRow[]);
     setAccounts(((accountsResult.data ?? []) as AccountRow[]).map((row) => mapAccount(row, eventsByResource)));
-    setLeads(((leadsResult.data ?? []) as CommercializerLeadRow[]).map((row) => mapLead(row, eventsByResource)));
     setLandingLeads(
       ((landingLeadsResult.data ?? []) as LandingLeadRow[]).map((row) => mapLandingLead(row, eventsByResource)),
     );
@@ -251,7 +215,6 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       }
       if (event === "SIGNED_OUT") {
         setAccounts([]);
-        setLeads([]);
         setLandingLeads([]);
         setError(null);
         setLoading(false);
@@ -407,36 +370,8 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     [recordEvent, refresh],
   );
 
-  const setLeadStatus = useCallback(
-    async (id: string, status: ComercializadoraStatus) => {
-      const { error: updateError } = await supabase
-        .from("commercializer_leads")
-        .update({ status })
-        .eq("id", id);
-      if (updateError) {
-        setError(updateError.message);
-        return;
-      }
-      await recordEvent("commercializer_lead", id, `Status alterado para "${status}"`);
-      await refresh();
-    },
-    [recordEvent, refresh],
-  );
-
-  const removeLead = useCallback(
-    async (id: string) => {
-      const { error: deleteError } = await supabase.from("commercializer_leads").delete().eq("id", id);
-      if (deleteError) {
-        setError(deleteError.message);
-        return;
-      }
-      await refresh();
-    },
-    [refresh],
-  );
-
   const setLandingLeadStatus = useCallback(
-    async (id: string, status: LandingLeadStatus) => {
+    async (id: string, status: LeadStatus) => {
       const { error: updateError } = await supabase
         .from("hero_form_submissions")
         .update({
@@ -469,7 +404,6 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Ctx>(
     () => ({
       accounts,
-      leads,
       landingLeads,
       loading,
       error,
@@ -480,14 +414,11 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       remove,
       setPaymentStatus,
       markPaid,
-      setLeadStatus,
-      removeLead,
       setLandingLeadStatus,
       removeLandingLead,
     }),
     [
       accounts,
-      leads,
       landingLeads,
       loading,
       error,
@@ -498,8 +429,6 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       remove,
       setPaymentStatus,
       markPaid,
-      setLeadStatus,
-      removeLead,
       setLandingLeadStatus,
       removeLandingLead,
     ],

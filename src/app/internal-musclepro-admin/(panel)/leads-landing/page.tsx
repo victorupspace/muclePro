@@ -10,36 +10,37 @@ import { LeadStatusBadge } from "@/components/admin/StatusBadge";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { useAdminStore } from "@/lib/admin/store";
 import {
-  LANDING_LEAD_KIND_LABEL,
+  BUSINESS_TYPE_LABEL,
+  LEAD_STATUS_LABEL,
+  businessTypeLabel,
   formatRelative,
+  studentsRangeLabel,
+  unitsRangeLabel,
 } from "@/lib/admin/format";
 import { onlyDigits } from "@/lib/cadastro/masks";
-import type {
-  LandingLead,
-  LandingLeadKind,
-  LandingLeadStatus,
-} from "@/lib/admin/types";
+import type { BusinessType, LandingLead, LeadStatus } from "@/lib/admin/types";
 
-const KIND_OPTIONS: { value: "all" | LandingLeadKind; label: string }[] = [
-  { value: "all", label: "Todos os perfis" },
-  { value: "consultor", label: "Consultor" },
-  { value: "comercializadora", label: "Comercializadora" },
-  { value: "consumidor", label: "Consumidor final" },
+const BUSINESS_TYPE_OPTIONS: { value: "all" | BusinessType; label: string }[] = [
+  { value: "all", label: "Todos os tipos" },
+  ...(Object.entries(BUSINESS_TYPE_LABEL) as [BusinessType, string][]).map(([value, label]) => ({
+    value,
+    label,
+  })),
 ];
 
-const STATUS_OPTIONS: { value: "all" | LandingLeadStatus; label: string }[] = [
+const STATUS_OPTIONS: { value: "all" | LeadStatus; label: string }[] = [
   { value: "all", label: "Todos os status" },
-  { value: "aguardando", label: "Aguardando contato" },
-  { value: "em_contato", label: "Em contato" },
-  { value: "convertida", label: "Convertida" },
-  { value: "perdida", label: "Perdida" },
+  ...(Object.entries(LEAD_STATUS_LABEL) as [LeadStatus, string][]).map(([value, label]) => ({
+    value,
+    label,
+  })),
 ];
 
 export default function LeadsLandingPage() {
   const { landingLeads, setLandingLeadStatus, removeLandingLead } = useAdminStore();
 
   const [search, setSearch] = useState("");
-  const [kind, setKind] = useState("all");
+  const [businessType, setBusinessType] = useState("all");
   const [status, setStatus] = useState("all");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
@@ -47,20 +48,17 @@ export default function LeadsLandingPage() {
     const q = search.trim().toLowerCase();
     const qDigits = onlyDigits(q);
     return landingLeads
-      .filter((lead) => (kind === "all" ? true : lead.clientType === kind))
+      .filter((lead) => (businessType === "all" ? true : lead.businessType === businessType))
       .filter((lead) => (status === "all" ? true : lead.status === status))
       .filter((lead) => {
         if (!q) return true;
         return (
           lead.fullName.toLowerCase().includes(q) ||
           lead.email.toLowerCase().includes(q) ||
-          onlyDigits(lead.phone).includes(qDigits) ||
-          LANDING_LEAD_KIND_LABEL[lead.clientType].toLowerCase().includes(q) ||
-          (lead.segment?.toLowerCase().includes(q) ?? false) ||
-          lead.regions.some((region) => region.toLowerCase().includes(q))
+          (qDigits.length > 0 && onlyDigits(lead.phone).includes(qDigits))
         );
       });
-  }, [landingLeads, kind, status, search]);
+  }, [landingLeads, businessType, status, search]);
 
   const deleteLead = confirmDelete
     ? landingLeads.find((lead) => lead.id === confirmDelete)
@@ -80,28 +78,41 @@ export default function LeadsLandingPage() {
             </span>
           </div>
           <p className="truncate text-[11.5px] text-ink-500">{lead.email}</p>
+          <p className="truncate text-[11.5px] text-ink-500">{lead.phone}</p>
         </div>
       ),
     },
     {
-      key: "kind",
-      header: "Perfil",
+      key: "businessType",
+      header: "Tipo de estabelecimento",
+      mobileLabel: "Tipo",
       render: (lead) => (
         <span className="text-[12px] font-semibold text-ink-700">
-          {LANDING_LEAD_KIND_LABEL[lead.clientType]}
+          {businessTypeLabel(lead.businessType)}
         </span>
       ),
     },
     {
-      key: "phone",
-      header: "Telefone",
-      render: (lead) => <span className="text-[12.5px] text-ink-700">{lead.phone}</span>,
+      key: "units",
+      header: "Unidades",
+      render: (lead) => (
+        <span className="text-[12.5px] text-ink-700">{unitsRangeLabel(lead.unitsRange)}</span>
+      ),
     },
     {
-      key: "details",
-      header: "Contexto",
-      mobileLayout: "stacked",
-      render: (lead) => <LeadContext lead={lead} />,
+      key: "students",
+      header: "Alunos ativos",
+      render: (lead) => (
+        <span className="text-[12.5px] text-ink-700">
+          {studentsRangeLabel(lead.activeStudentsRange)}
+        </span>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      hideOnMobile: true,
+      render: (lead) => <LeadStatusBadge status={lead.status} />,
     },
     {
       key: "requested",
@@ -112,19 +123,13 @@ export default function LeadsLandingPage() {
         </span>
       ),
     },
-    {
-      key: "status",
-      header: "Status",
-      hideOnMobile: true,
-      render: (lead) => <LeadStatusBadge status={lead.status} />,
-    },
   ];
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Leads da landing"
-        description="Todos os diagnósticos enviados pelo formulário principal da landing page, separados por perfil e status comercial."
+        description="Todos os contatos enviados pelo formulário principal da landing page, separados por tipo de estabelecimento e status comercial."
       />
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
@@ -132,10 +137,15 @@ export default function LeadsLandingPage() {
           value={search}
           onChange={setSearch}
           className="w-full lg:max-w-[420px]"
-          placeholder="Buscar por nome, email, telefone, perfil ou contexto"
+          placeholder="Buscar por nome, e-mail ou telefone"
         />
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <SelectFilter label="Perfil" value={kind} onChange={setKind} options={KIND_OPTIONS} />
+          <SelectFilter
+            label="Tipo"
+            value={businessType}
+            onChange={setBusinessType}
+            options={BUSINESS_TYPE_OPTIONS}
+          />
           <SelectFilter label="Status" value={status} onChange={setStatus} options={STATUS_OPTIONS} />
         </div>
       </div>
@@ -199,27 +209,5 @@ export default function LeadsLandingPage() {
         }}
       />
     </div>
-  );
-}
-
-function LeadContext({ lead }: { lead: LandingLead }) {
-  const items = [
-    lead.regions.length > 0 ? `Regiões: ${lead.regions.join(", ")}` : null,
-    lead.hasPartnerNetwork === null || lead.hasPartnerNetwork === undefined
-      ? null
-      : `Rede de parceiros: ${lead.hasPartnerNetwork ? "sim" : "não"}`,
-    lead.commercializerSize ? `Porte: ${lead.commercializerSize}` : null,
-    lead.segment ? `Segmento: ${lead.segment}` : null,
-    lead.monthlyEnergySpend ? `Gasto: ${lead.monthlyEnergySpend}` : null,
-  ].filter(Boolean);
-
-  if (items.length === 0) {
-    return <span className="text-[12.5px] text-ink-400">—</span>;
-  }
-
-  return (
-    <span className="text-[12.5px] leading-[1.45] text-ink-700 md:line-clamp-2">
-      {items.join(" · ")}
-    </span>
   );
 }

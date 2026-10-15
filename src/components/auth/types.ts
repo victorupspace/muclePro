@@ -1,19 +1,18 @@
-export type AccountType = "consultor" | "comercializadora";
+import type { BusinessType } from "@/lib/supabase/leads";
 
 export type DocType = "cnpj" | "cpf";
 
-export type ConsultorForm = {
+export type EstabelecimentoForm = {
+  // responsável pela conta
   nome: string;
   telefone: string;
   email: string;
   docType: DocType;
   documento: string;
+  // estabelecimento
+  nomeEstabelecimento: string;
+  tipo: BusinessType | "";
+  // preenchidos pela consulta de CNPJ (BrasilAPI)
   razaoSocial?: string;
   endereco?: string;
-};
-
-export type ComercializadoraForm = {
-  nome: string;
-  email: string;
-  telefone: string;
 };

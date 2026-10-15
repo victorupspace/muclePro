@@ -1,36 +1,98 @@
 import type {
-  ClientLifecycleStatus,
-  ClientMigrationStage,
-  ClientProfileTag,
-  ClientStatus,
-  ProposalStatus,
-  SimulationStatus,
+  BillingState,
+  BusinessType,
+  PaymentMethod,
+  PaymentStatus,
+  PlanFrequency,
+  StaffRole,
+  StudentActivityKind,
+  StudentStatus,
   SubscriptionStatus,
   TaskPriority,
 } from "./types";
 
-export const CLIENT_STATUS_LABEL: Record<ClientStatus, string> = {
-  novo: "Novo",
-  qualificando: "Qualificando",
-  proposta_enviada: "Proposta enviada",
-  em_negociacao: "Em negociação",
-  assinado: "Assinado",
-  migrando: "Migrando",
+// ───────────────────────────── rótulos ─────────────────────────────────────
+
+export const BUSINESS_TYPE_LABEL: Record<BusinessType, string> = {
+  academia: "Academia de musculação",
+  estudio: "Estúdio",
+  natacao: "Escola de natação",
+  crossfit: "Box de crossfit",
+  lutas: "Academia de lutas",
+  outro: "Outro negócio de saúde",
+};
+
+export const STAFF_ROLE_LABEL: Record<StaffRole, string> = {
+  gestao: "Gestão",
+  recepcao: "Recepção",
+  contabilidade: "Contabilidade",
+  personal: "Personal",
+  outro: "Outro perfil",
+};
+
+export const PLAN_FREQUENCY_LABEL: Record<PlanFrequency, string> = {
+  mensal: "Mensal",
+  bimestral: "Bimestral",
+  trimestral: "Trimestral",
+  semestral: "Semestral",
+  anual: "Anual",
+};
+
+export const PLAN_FREQUENCY_MONTHS: Record<PlanFrequency, number> = {
+  mensal: 1,
+  bimestral: 2,
+  trimestral: 3,
+  semestral: 6,
+  anual: 12,
+};
+
+// "a cada 3 meses"
+export function planCadenceLabel(frequency: PlanFrequency) {
+  const months = PLAN_FREQUENCY_MONTHS[frequency];
+  return months === 1 ? "por mês" : `a cada ${months} meses`;
+}
+
+export const STUDENT_STATUS_LABEL: Record<StudentStatus, string> = {
   ativo: "Ativo",
   inativo: "Inativo",
 };
 
-export const PROPOSAL_STATUS_LABEL: Record<ProposalStatus, string> = {
-  rascunho: "Rascunho",
-  enviada: "Enviada",
-  aceita: "Aceita",
-  recusada: "Recusada",
+export const BILLING_STATE_LABEL: Record<BillingState, string> = {
+  em_dia: "Em dia",
+  a_vencer: "A vencer",
+  inadimplente: "Inadimplente",
+  sem_plano: "Sem plano",
 };
 
-export const SIMULATION_STATUS_LABEL: Record<SimulationStatus, string> = {
-  rascunho: "Rascunho",
-  enviada: "Enviada",
-  arquivada: "Arquivada",
+export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
+  pendente: "Pendente",
+  pago: "Pago",
+  cancelado: "Cancelado",
+};
+
+export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
+  pix: "Pix",
+  cartao: "Cartão",
+  dinheiro: "Dinheiro",
+  boleto: "Boleto",
+  outro: "Outro",
+};
+
+export const TASK_PRIORITY_LABEL: Record<TaskPriority, string> = {
+  baixa: "Baixa",
+  media: "Média",
+  alta: "Alta",
+};
+
+export const ACTIVITY_KIND_LABEL: Record<StudentActivityKind, string> = {
+  cadastro: "Cadastro",
+  nota: "Nota",
+  pagamento: "Pagamento",
+  cobranca: "Cobrança",
+  plano: "Plano",
+  status: "Status",
+  contato: "Contato",
+  tarefa: "Tarefa",
 };
 
 export const SUBSCRIPTION_LABEL: Record<SubscriptionStatus, string> = {
@@ -39,11 +101,7 @@ export const SUBSCRIPTION_LABEL: Record<SubscriptionStatus, string> = {
   expirado: "Expirada",
 };
 
-export const TASK_PRIORITY_LABEL: Record<TaskPriority, string> = {
-  baixa: "Baixa",
-  media: "Média",
-  alta: "Alta",
-};
+// ───────────────────────────── números e moeda ─────────────────────────────
 
 export function formatCurrency(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
@@ -55,6 +113,53 @@ export function formatCurrencyDetailed(v: number) {
 
 export function formatNumber(v: number) {
   return v.toLocaleString("pt-BR");
+}
+
+// ───────────────────────────── datas ───────────────────────────────────────
+
+// Data local no formato YYYY-MM-DD (o mesmo das colunas `date`).
+export function toDateValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function todayValue() {
+  return toDateValue(new Date());
+}
+
+// Interpreta YYYY-MM-DD como meia-noite local (evita o deslocamento de fuso
+// que `new Date("YYYY-MM-DD")` causa).
+export function parseDateValue(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!match) return new Date(value);
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+export function addMonthsToDateValue(value: string, months: number) {
+  const date = parseDateValue(value);
+  const day = date.getDate();
+  const next = new Date(date.getFullYear(), date.getMonth() + months, 1);
+  const lastDay = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+  next.setDate(Math.min(day, lastDay));
+  return toDateValue(next);
+}
+
+// Dias inteiros entre hoje e a data (positivo = no futuro).
+export function daysFromToday(value: string) {
+  const target = parseDateValue(value);
+  const today = parseDateValue(todayValue());
+  return Math.round((target.getTime() - today.getTime()) / 86_400_000);
+}
+
+export function formatDateValue(value?: string | null) {
+  if (!value) return "—";
+  return parseDateValue(value).toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 }
 
 export function formatRelative(iso: string) {
@@ -73,11 +178,11 @@ export function formatRelative(iso: string) {
 }
 
 export function formatDateShort(iso: string) {
-  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+  return parseDateValue(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
 }
 
 export function formatDateLong(iso: string) {
-  return new Date(iso).toLocaleDateString("pt-BR", {
+  return parseDateValue(iso).toLocaleDateString("pt-BR", {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -94,6 +199,27 @@ export function formatDateTime(iso: string) {
   });
 }
 
+export function ageFromBirthDate(value?: string | null) {
+  if (!value) return null;
+  const birth = parseDateValue(value);
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const beforeBirthday =
+    today.getMonth() < birth.getMonth() ||
+    (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate());
+  if (beforeBirthday) age -= 1;
+  return age;
+}
+
+export function isBirthdayToday(value?: string | null) {
+  if (!value) return false;
+  const birth = parseDateValue(value);
+  const today = new Date();
+  return birth.getDate() === today.getDate() && birth.getMonth() === today.getMonth();
+}
+
+// ───────────────────────────── documentos e contato ────────────────────────
+
 export function formatDocument(doc?: string | null) {
   if (!doc) return "—";
   const digits = doc.replace(/\D/g, "");
@@ -106,56 +232,30 @@ export function formatDocument(doc?: string | null) {
   return doc;
 }
 
-export function formatKwh(value?: number | null) {
-  if (value === null || value === undefined) return "—";
-  return `${value.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} kWh`;
+export function formatPhone(phone?: string | null) {
+  if (!phone) return "—";
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 11) return digits.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
+  if (digits.length === 10) return digits.replace(/(\d{2})(\d{4})(\d{4})/, "($1) $2-$3");
+  return phone;
 }
 
-export function formatKw(value?: number | null) {
-  if (value === null || value === undefined) return "—";
-  return `${value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kW`;
+// Link do WhatsApp com mensagem pronta. Números sem DDI recebem o 55 do Brasil.
+export function whatsappLink(phone: string, text: string) {
+  let digits = phone.replace(/\D/g, "");
+  if (digits.length <= 11) digits = `55${digits}`;
+  return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
 }
 
-export const CLIENT_LIFECYCLE_LABEL: Record<ClientLifecycleStatus, string> = {
-  novo: "Novo",
-  qualificando: "Qualificando",
-  proposta_enviada: "Proposta enviada",
-  em_negociacao: "Em negociação",
-  assinado: "Assinado",
-  migrando: "Migrando",
-  ativo: "Ativo",
-  inativo: "Inativo",
-};
+export function initials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? "")
+    .join("");
+}
 
-export const CLIENT_PROFILE_LABEL: Record<ClientProfileTag, string> = {
-  varejista: "Varejista",
-  atacadista: "Atacadista",
-  industria: "Indústria",
-  servicos: "Serviços",
-  logistica: "Logística",
-  outros: "Outros",
-};
-
-export const CLIENT_MIGRATION_STAGES: ClientMigrationStage[] = [
-  "diagnostico",
-  "simulacao",
-  "proposta_enviada",
-  "proposta_aceita",
-  "denuncia",
-  "contratos",
-  "smf",
-  "ccee",
-  "ativo_ml",
-];
-
-export const CLIENT_MIGRATION_LABEL: Record<ClientMigrationStage, string> = {
-  diagnostico: "Diagnóstico inicial",
-  simulacao: "Simulação realizada",
-  proposta_enviada: "Proposta enviada",
-  proposta_aceita: "Proposta aceita",
-  denuncia: "Denúncia à distribuidora",
-  contratos: "Assinatura de contratos (CUSD/CCER)",
-  smf: "Adequação SMF",
-  ccee: "Modelagem CCEE",
-  ativo_ml: "Cliente ativo no mercado livre",
-};
+export function firstName(name: string) {
+  return name.trim().split(" ")[0] ?? name;
+}

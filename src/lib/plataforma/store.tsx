@@ -10,1659 +10,1358 @@ import {
   type ReactNode,
 } from "react";
 import { supabase } from "@/lib/supabase/client";
-import { buildClientProfile } from "./client-profile-mock";
-import { DEFAULT_CLIENT_SEGMENTS, mergeSegments, normalizeSegmentName } from "./client-segments";
-import { CLIENT_MIGRATION_LABEL, CLIENT_MIGRATION_STAGES, CLIENT_STATUS_LABEL, formatCurrency } from "./format";
-import { useConsultorSession } from "./session";
+import { computeBilling, cycleLabel, monthlyRecurring, nextDueDate } from "./billing";
+import { formatCurrency, formatDateValue, todayValue } from "./format";
+import { buildNextBestActions, type NextBestAction } from "./next-best-action";
+import { useAccountSession } from "./session";
 import type {
-  Client,
-  ClientActivity,
-  ClientProfile,
-  ClientMigrationDocument,
-  ClientMigrationStage,
-  ClientMigrationStatus,
-  ClientMigrationStep,
-  ClientStatus,
+  CompanyProfilePatch,
   DashboardMetrics,
   Notification,
   NotificationKind,
-  Proposal,
-  ProposalStatus,
-  Simulation,
-  SimulationData,
-  SimulationResultsData,
-  SimulationStatus,
+  Payment,
+  PaymentMethod,
+  Plan,
+  PlanFrequency,
+  Staff,
+  StaffRole,
+  Student,
+  StudentActivity,
+  StudentActivityKind,
+  StudentBilling,
+  StudentStatus,
   Subscription,
   SubscriptionStatus,
   Task,
   TaskPriority,
+  Unit,
 } from "./types";
 
-type NewClient = Pick<Client, "name" | "email" | "phone"> &
-  Partial<Pick<Client, "companyName" | "locationState" | "locationCity" | "distributor" | "segment" | "status">>;
+// ───────────────────────────── linhas do banco ─────────────────────────────
 
-type ClientPatch = Partial<
-  Pick<
-    Client,
-    | "name"
-    | "email"
-    | "phone"
-    | "companyName"
-    | "locationState"
-    | "locationCity"
-    | "distributor"
-    | "segment"
-    | "status"
-    | "monthlySavings"
-  >
->;
-
-type NewTask = Pick<Task, "title"> &
-  Partial<Pick<Task, "description" | "dueAt" | "clientId" | "priority">>;
-
-type NewProposal = Pick<Proposal, "clientId" | "title" | "amount"> &
-  Partial<Pick<Proposal, "status" | "sentAt">>;
-
-type ProposalPatch = Partial<Pick<Proposal, "title" | "amount" | "status" | "sentAt">>;
-
-type NewSimulation = Pick<Simulation, "clientId" | "simulationData" | "resultsData"> &
-  Partial<Pick<Simulation, "status" | "pdfUrl" | "sentAt">>;
-
-type SimulationPatch = Partial<Pick<Simulation, "simulationData" | "resultsData" | "status" | "pdfUrl" | "sentAt">>;
-
-type MigrationStepPatch = Partial<
-  Pick<ClientMigrationStep, "status" | "notes" | "completedAt">
->;
-
-type NewMigrationDocument = Pick<ClientMigrationDocument, "name" | "sizeKb">;
-
-type NewClientActivity = Pick<ClientActivity, "kind" | "title"> &
-  Partial<Pick<ClientActivity, "body" | "by">> & { metadata?: Record<string, unknown> };
-
-export type PipelineCard = {
-  id: string;
-  ownerId: string;
-  clientId: string;
-  stage: ClientStatus;
-  stageUpdatedAt: string;
-  followUpAt?: string;
-  position: number;
-  priorityScore?: number;
-  lastInteractionAt?: string;
-};
-
-export type NbaExecutionInput = {
-  clientId: string;
-  actionType: string;
-  ctaAction: string;
-  priority: "low" | "medium" | "high" | "critical";
-  title: string;
-  reason?: string;
-  outcome?: string;
-};
-
-export type ClientDocumentRecord = {
-  id: string;
-  clientId: string;
-  docType: string;
-  status: "solicitado" | "recebido" | "aprovado" | "rejeitado" | "expirado";
-  name: string;
-  storagePath?: string;
-  sizeKb: number;
-  expiresAt?: string;
-  requestedAt?: string;
-  uploadedAt?: string;
-  notes?: string;
-  createdAt: string;
-};
-
-type Ctx = {
-  ownerId: string;
-  clients: Client[];
-  clientSegments: string[];
-  tasks: Task[];
-  proposals: Proposal[];
-  simulations: Simulation[];
-  notifications: Notification[];
-  subscription: Subscription;
-  metrics: DashboardMetrics;
-  loading: boolean;
-  error: string | null;
-  refresh: () => Promise<void>;
-  addClientSegment: (name: string) => string | null;
-  addClient: (input: NewClient) => Promise<Client | null>;
-  updateClient: (id: string, patch: ClientPatch) => Promise<Client | null>;
-  updateClientMigrationStep: (
-    clientId: string,
-    stepName: ClientMigrationStage,
-    patch: MigrationStepPatch,
-  ) => Promise<ClientMigrationStep | null>;
-  addClientMigrationDocument: (
-    clientId: string,
-    stepName: ClientMigrationStage,
-    document: NewMigrationDocument,
-  ) => Promise<ClientMigrationStep | null>;
-  removeClient: (id: string) => Promise<boolean>;
-  addTask: (input: NewTask) => Promise<Task | null>;
-  toggleTask: (id: string) => Promise<void>;
-  addProposal: (input: NewProposal) => Promise<Proposal | null>;
-  updateProposal: (id: string, patch: ProposalPatch) => Promise<Proposal | null>;
-  removeProposal: (id: string) => Promise<boolean>;
-  addSimulation: (input: NewSimulation) => Promise<Simulation | null>;
-  updateSimulation: (id: string, patch: SimulationPatch) => Promise<Simulation | null>;
-  removeSimulation: (id: string) => Promise<boolean>;
-  addClientActivity: (clientId: string, input: NewClientActivity) => Promise<ClientActivity | null>;
-  removeClientActivity: (clientId: string, activityId: string) => Promise<boolean>;
-  getClientProfile: (clientId: string) => ClientProfile | null;
-  markNotificationRead: (id: string) => Promise<void>;
-  markAllNotificationsRead: () => Promise<void>;
-  // Pipeline cards (CRM persistido)
-  pipelineCards: Record<string, PipelineCard>;
-  setPipelineFollowUp: (clientId: string, followUpAt: string | null) => Promise<void>;
-  touchPipelineStage: (clientId: string) => Promise<void>;
-  recordNbaExecution: (input: NbaExecutionInput) => Promise<void>;
-  recordClientDocumentAction: (input: {
-    clientId: string;
-    docType: string;
-    status: "solicitado" | "recebido";
-    name?: string;
-    notes?: string;
-  }) => Promise<ClientDocumentRecord | null>;
-};
-
-const StoreContext = createContext<Ctx | null>(null);
-
-type ClientRow = {
+type UnitRow = {
   id: string;
   account_id: string;
-  created_at: string;
   name: string;
-  company_name: string | null;
-  email: string;
-  phone: string;
-  location_state: string | null;
-  location_city: string | null;
-  distributor: string | null;
-  segment: string | null;
-  monthly_savings: number | string | null;
-  status: string;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  phone: string | null;
+  is_main: boolean;
+  active: boolean;
+  created_at: string;
+};
+
+type StaffRow = {
+  id: string;
+  account_id: string;
+  unit_id: string | null;
+  auth_user_id: string | null;
+  full_name: string;
+  cpf: string | null;
+  email: string | null;
+  phone: string | null;
+  role: StaffRole;
+  role_label: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  can_register_students: boolean;
+  can_send_payment_links: boolean;
+  can_create_workouts: boolean;
+  active: boolean;
+  notes: string | null;
+  created_at: string;
+};
+
+type PlanRow = {
+  id: string;
+  account_id: string;
+  name: string;
+  amount: number | string;
+  frequency: PlanFrequency;
+  description: string | null;
+  active: boolean;
+  created_at: string;
+};
+
+type StudentRow = {
+  id: string;
+  account_id: string;
+  unit_id: string | null;
+  plan_id: string | null;
+  full_name: string;
+  cpf: string | null;
+  birth_date: string | null;
+  whatsapp: string | null;
+  email: string | null;
+  medical_notes: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
+  status: StudentStatus;
+  plan_started_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type PaymentRow = {
+  id: string;
+  account_id: string;
+  student_id: string;
+  plan_id: string | null;
+  amount: number | string;
+  due_at: string;
+  paid_at: string | null;
+  method: PaymentMethod | null;
+  status: Payment["status"];
+  reference_label: string | null;
+  notes: string | null;
+  created_at: string;
 };
 
 type TaskRow = {
   id: string;
   account_id: string;
-  client_id: string | null;
-  created_at: string;
+  student_id: string | null;
+  staff_id: string | null;
   title: string;
   description: string | null;
   due_at: string | null;
   priority: TaskPriority;
   done: boolean;
-};
-
-type ProposalRow = {
-  id: string;
-  account_id: string;
-  client_id: string;
+  done_at: string | null;
   created_at: string;
-  title: string;
-  amount: number | string | null;
-  status: ProposalStatus;
-  sent_at: string | null;
 };
 
-type SimulationRow = {
+type ActivityRow = {
   id: string;
-  user_id: string;
-  client_id: string;
-  created_at: string;
-  sent_at: string | null;
-  simulation_data: SimulationData;
-  results_data: SimulationResultsData;
-  status: SimulationStatus;
-  pdf_url: string | null;
-};
-
-type PipelineCardRow = {
-  id: string;
-  account_id: string;
-  client_id: string;
-  stage: string;
-  stage_updated_at: string;
-  follow_up_at: string | null;
-  position: number;
-  priority_score: number | null;
-  last_interaction_at: string | null;
-};
-
-type ClientActivityRow = {
-  id: string;
-  account_id: string;
-  client_id: string;
-  created_by: string | null;
-  kind: ClientActivity["kind"];
+  student_id: string;
+  kind: StudentActivityKind;
   title: string;
   body: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
 };
 
-type ClientSegmentRow = {
-  id: string;
-  account_id: string;
-  created_at: string;
-  name: string;
-  created_by: string | null;
-};
-
-type ClientMigrationStepRow = {
-  id: string;
-  client_id: string;
-  step_name: string;
-  status: string;
-  notes: string | null;
-  completed_at: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-type ClientMigrationDocumentRow = {
-  id: string;
-  migration_step_id: string;
-  created_at: string;
-  name: string;
-  size_kb: number;
-  storage_path: string | null;
-};
-
-function mapPipelineCard(row: PipelineCardRow): PipelineCard {
-  return {
-    id: row.id,
-    ownerId: row.account_id,
-    clientId: row.client_id,
-    stage: normalizeClientStatus(row.stage),
-    stageUpdatedAt: row.stage_updated_at,
-    followUpAt: row.follow_up_at ?? undefined,
-    position: row.position,
-    priorityScore: row.priority_score ?? undefined,
-    lastInteractionAt: row.last_interaction_at ?? undefined,
-  };
-}
-
-function mapClientActivity(row: ClientActivityRow): ClientActivity {
-  return {
-    id: row.id,
-    clientId: row.client_id,
-    kind: row.kind,
-    by: "Você",
-    at: row.created_at,
-    title: row.title,
-    body: row.body ?? undefined,
-  };
-}
-
-function normalizeMigrationStage(stepName: string): ClientMigrationStage {
-  return CLIENT_MIGRATION_STAGES.includes(stepName as ClientMigrationStage)
-    ? (stepName as ClientMigrationStage)
-    : "diagnostico";
-}
-
-function normalizeMigrationStatus(status: string): ClientMigrationStatus {
-  if (status === "em_andamento" || status === "concluido" || status === "pendente") {
-    return status;
-  }
-  return "pendente";
-}
-
-function mapMigrationDocument(row: ClientMigrationDocumentRow): ClientMigrationDocument {
-  return {
-    id: row.id,
-    name: row.name,
-    sizeKb: row.size_kb,
-    uploadedAt: row.created_at,
-  };
-}
-
-function mapMigrationStep(
-  row: ClientMigrationStepRow,
-  documents: ClientMigrationDocument[] = [],
-): ClientMigrationStep {
-  return {
-    id: row.id,
-    clientId: row.client_id,
-    stepName: normalizeMigrationStage(row.step_name),
-    status: normalizeMigrationStatus(row.status),
-    notes: row.notes ?? undefined,
-    completedAt: row.completed_at ?? undefined,
-    updatedAt: row.updated_at,
-    documents,
-  };
-}
-
-function sortMigrationSteps(steps: ClientMigrationStep[]) {
-  return [...steps].sort(
-    (a, b) =>
-      CLIENT_MIGRATION_STAGES.indexOf(a.stepName) - CLIENT_MIGRATION_STAGES.indexOf(b.stepName),
-  );
-}
-
-function upsertMigrationStepInList(
-  steps: ClientMigrationStep[],
-  nextStep: ClientMigrationStep,
-) {
-  const found = steps.some((step) => step.stepName === nextStep.stepName);
-  const next = found
-    ? steps.map((step) => (step.stepName === nextStep.stepName ? nextStep : step))
-    : [...steps, nextStep];
-  return sortMigrationSteps(next);
-}
-
-function mergeMigrationSteps(
-  baseSteps: ClientMigrationStep[],
-  persistedSteps: ClientMigrationStep[],
-) {
-  return sortMigrationSteps(
-    baseSteps.map((baseStep) => {
-      const persisted = persistedSteps.find((step) => step.stepName === baseStep.stepName);
-      return persisted ? { ...baseStep, ...persisted } : baseStep;
-    }),
-  );
-}
-
 type AnnouncementRow = {
   id: string;
-  created_at: string;
   kind: NotificationKind;
   title: string;
   body: string;
   href: string | null;
-  audience: "all" | "consultor" | "comercializadora";
   published_at: string | null;
-  expires_at: string | null;
-  account_id: string;
+  created_at: string;
   read: boolean;
-  read_at: string | null;
 };
 
-function mapAnnouncement(row: AnnouncementRow): Notification {
-  return {
-    id: row.id,
-    ownerId: row.account_id,
-    kind: row.kind,
-    title: row.title,
-    body: row.body,
-    createdAt: row.published_at ?? row.created_at,
-    read: row.read,
-    href: row.href ?? undefined,
-  };
+const mapUnit = (r: UnitRow): Unit => ({
+  id: r.id,
+  accountId: r.account_id,
+  name: r.name,
+  address: r.address ?? undefined,
+  city: r.city ?? undefined,
+  state: r.state ?? undefined,
+  phone: r.phone ?? undefined,
+  isMain: r.is_main,
+  active: r.active,
+  createdAt: r.created_at,
+});
+
+const mapStaff = (r: StaffRow): Staff => ({
+  id: r.id,
+  accountId: r.account_id,
+  unitId: r.unit_id ?? undefined,
+  authUserId: r.auth_user_id ?? undefined,
+  fullName: r.full_name,
+  cpf: r.cpf ?? undefined,
+  email: r.email ?? undefined,
+  phone: r.phone ?? undefined,
+  role: r.role,
+  roleLabel: r.role_label ?? undefined,
+  startedAt: r.started_at ?? undefined,
+  endedAt: r.ended_at ?? undefined,
+  canRegisterStudents: r.can_register_students,
+  canSendPaymentLinks: r.can_send_payment_links,
+  canCreateWorkouts: r.can_create_workouts,
+  active: r.active,
+  notes: r.notes ?? undefined,
+  createdAt: r.created_at,
+});
+
+const mapPlan = (r: PlanRow): Plan => ({
+  id: r.id,
+  accountId: r.account_id,
+  name: r.name,
+  amount: Number(r.amount),
+  frequency: r.frequency,
+  description: r.description ?? undefined,
+  active: r.active,
+  createdAt: r.created_at,
+});
+
+const mapStudent = (r: StudentRow): Student => ({
+  id: r.id,
+  accountId: r.account_id,
+  unitId: r.unit_id ?? undefined,
+  planId: r.plan_id ?? undefined,
+  fullName: r.full_name,
+  cpf: r.cpf ?? undefined,
+  birthDate: r.birth_date ?? undefined,
+  whatsapp: r.whatsapp ?? undefined,
+  email: r.email ?? undefined,
+  medicalNotes: r.medical_notes ?? undefined,
+  emergencyContactName: r.emergency_contact_name ?? undefined,
+  emergencyContactPhone: r.emergency_contact_phone ?? undefined,
+  status: r.status,
+  planStartedAt: r.plan_started_at ?? undefined,
+  notes: r.notes ?? undefined,
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+});
+
+const mapPayment = (r: PaymentRow): Payment => ({
+  id: r.id,
+  accountId: r.account_id,
+  studentId: r.student_id,
+  planId: r.plan_id ?? undefined,
+  amount: Number(r.amount),
+  dueAt: r.due_at,
+  paidAt: r.paid_at ?? undefined,
+  method: r.method ?? undefined,
+  status: r.status,
+  referenceLabel: r.reference_label ?? undefined,
+  notes: r.notes ?? undefined,
+  createdAt: r.created_at,
+});
+
+const mapTask = (r: TaskRow): Task => ({
+  id: r.id,
+  accountId: r.account_id,
+  studentId: r.student_id ?? undefined,
+  staffId: r.staff_id ?? undefined,
+  title: r.title,
+  description: r.description ?? undefined,
+  dueAt: r.due_at ?? undefined,
+  priority: r.priority,
+  done: r.done,
+  doneAt: r.done_at ?? undefined,
+  createdAt: r.created_at,
+});
+
+const mapActivity = (r: ActivityRow, by: string): StudentActivity => ({
+  id: r.id,
+  studentId: r.student_id,
+  kind: r.kind,
+  title: r.title,
+  body: r.body ?? undefined,
+  by: (r.metadata?.by as string | undefined) ?? by,
+  at: r.created_at,
+  metadata: r.metadata ?? undefined,
+});
+
+const mapNotification = (r: AnnouncementRow): Notification => ({
+  id: r.id,
+  kind: r.kind,
+  title: r.title,
+  body: r.body,
+  href: r.href ?? undefined,
+  createdAt: r.published_at ?? r.created_at,
+  read: r.read,
+});
+
+function mapSubscription(paymentStatus?: string, paymentPlan?: string, nextDueAt?: string): Subscription {
+  const status: SubscriptionStatus =
+    paymentStatus === "em_dia"
+      ? "ativo"
+      : paymentStatus === "trial" || paymentStatus === "nao_iniciado" || !paymentStatus
+        ? "trial"
+        : "expirado";
+  return { status, plan: paymentPlan || "musclePro", nextDueAt };
 }
 
-function normalizeClientStatus(status: string): ClientStatus {
-  if (status === "prospecto") return "novo";
-  if (status === "perdido") return "inativo";
-  if (
-    status === "novo" ||
-    status === "qualificando" ||
-    status === "proposta_enviada" ||
-    status === "em_negociacao" ||
-    status === "assinado" ||
-    status === "migrando" ||
-    status === "ativo" ||
-    status === "inativo"
-  ) {
-    return status;
+const nullable = (v?: string | number | null) => (v === undefined || v === "" ? null : v);
+
+// ───────────────────────────── entradas das mutações ───────────────────────
+
+export type NewUnit = {
+  name: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  phone?: string;
+  isMain?: boolean;
+};
+export type UnitPatch = Partial<NewUnit & { active: boolean }>;
+
+export type NewStaff = {
+  fullName: string;
+  role: StaffRole;
+  roleLabel?: string;
+  cpf?: string;
+  email?: string;
+  phone?: string;
+  unitId?: string;
+  startedAt?: string;
+  endedAt?: string;
+  canRegisterStudents?: boolean;
+  canSendPaymentLinks?: boolean;
+  canCreateWorkouts?: boolean;
+  notes?: string;
+};
+export type StaffPatch = Partial<NewStaff & { active: boolean }>;
+
+export type NewPlan = {
+  name: string;
+  amount: number;
+  frequency: PlanFrequency;
+  description?: string;
+};
+export type PlanPatch = Partial<NewPlan & { active: boolean }>;
+
+export type NewStudent = {
+  fullName: string;
+  whatsapp?: string;
+  email?: string;
+  cpf?: string;
+  birthDate?: string;
+  unitId?: string;
+  planId?: string;
+  planStartedAt?: string;
+  medicalNotes?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  notes?: string;
+  status?: StudentStatus;
+};
+export type StudentPatch = Partial<NewStudent>;
+
+export type NewTask = {
+  title: string;
+  description?: string;
+  dueAt?: string;
+  studentId?: string;
+  staffId?: string;
+  priority?: TaskPriority;
+};
+export type TaskPatch = Partial<NewTask & { done: boolean }>;
+
+export type NewPayment = {
+  studentId: string;
+  amount: number;
+  dueAt: string;
+  referenceLabel?: string;
+  planId?: string;
+};
+
+export type RegisterPaymentInput = {
+  paidAt?: string;
+  method?: PaymentMethod;
+  amount?: number;
+  notes?: string;
+};
+
+export type NewStudentActivity = {
+  kind: StudentActivityKind;
+  title: string;
+  body?: string;
+  metadata?: Record<string, unknown>;
+};
+
+type Ctx = {
+  loading: boolean;
+  error: string | null;
+  actionError: string | null;
+  clearActionError: () => void;
+  refresh: () => Promise<void>;
+
+  units: Unit[];
+  staff: Staff[];
+  plans: Plan[];
+  students: Student[];
+  payments: Payment[];
+  tasks: Task[];
+  activities: StudentActivity[];
+  notifications: Notification[];
+  subscription: Subscription;
+  metrics: DashboardMetrics;
+  recommendedActions: NextBestAction[];
+
+  billingFor: (studentId: string) => StudentBilling;
+  studentById: (id: string) => Student | undefined;
+  planById: (id?: string) => Plan | undefined;
+  unitById: (id?: string) => Unit | undefined;
+  staffById: (id?: string) => Staff | undefined;
+  paymentsFor: (studentId: string) => Payment[];
+  activitiesFor: (studentId: string) => StudentActivity[];
+
+  updateCompanyProfile: (patch: CompanyProfilePatch) => Promise<boolean>;
+
+  addUnit: (input: NewUnit) => Promise<Unit | null>;
+  updateUnit: (id: string, patch: UnitPatch) => Promise<Unit | null>;
+  removeUnit: (id: string) => Promise<boolean>;
+
+  addStaff: (input: NewStaff) => Promise<Staff | null>;
+  updateStaff: (id: string, patch: StaffPatch) => Promise<Staff | null>;
+  removeStaff: (id: string) => Promise<boolean>;
+
+  addPlan: (input: NewPlan) => Promise<Plan | null>;
+  updatePlan: (id: string, patch: PlanPatch) => Promise<Plan | null>;
+  removePlan: (id: string) => Promise<boolean>;
+
+  addStudent: (input: NewStudent) => Promise<Student | null>;
+  updateStudent: (id: string, patch: StudentPatch) => Promise<Student | null>;
+  removeStudent: (id: string) => Promise<boolean>;
+  assignPlan: (studentId: string, planId: string, startDate: string) => Promise<boolean>;
+
+  addPayment: (input: NewPayment) => Promise<Payment | null>;
+  registerPayment: (paymentId: string, input: RegisterPaymentInput) => Promise<boolean>;
+  cancelPayment: (paymentId: string) => Promise<boolean>;
+  logCharge: (studentId: string, channel: "whatsapp" | "lembrete", payment?: Payment) => Promise<void>;
+
+  addTask: (input: NewTask) => Promise<Task | null>;
+  updateTask: (id: string, patch: TaskPatch) => Promise<Task | null>;
+  toggleTask: (id: string) => Promise<void>;
+  removeTask: (id: string) => Promise<boolean>;
+
+  addStudentActivity: (studentId: string, input: NewStudentActivity) => Promise<StudentActivity | null>;
+  removeStudentActivity: (activityId: string) => Promise<boolean>;
+
+  markNotificationRead: (id: string) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
+};
+
+const StoreContext = createContext<Ctx | null>(null);
+
+const EMPTY_METRICS: DashboardMetrics = {
+  activeStudents: 0,
+  delinquentStudents: 0,
+  delinquentAmount: 0,
+  dueSoonStudents: 0,
+  activeStaff: 0,
+  openTasks: 0,
+  overdueTasks: 0,
+  activePlans: 0,
+  monthlyRecurring: 0,
+};
+
+function describeError(error: unknown, fallback: string) {
+  if (error && typeof error === "object" && "message" in error) {
+    const message = String((error as { message: unknown }).message);
+    if (message.includes("23505")) return "Já existe um registro com esses dados.";
+    return message;
   }
-  return "novo";
-}
-
-function stepsToMigration(steps: ClientMigrationStep[]) {
-  return CLIENT_MIGRATION_STAGES.reduce<Record<ClientMigrationStage, ClientMigrationStatus>>(
-    (acc, stage) => {
-      acc[stage] = steps.find((step) => step.stepName === stage)?.status ?? "pendente";
-      return acc;
-    },
-    {} as Record<ClientMigrationStage, ClientMigrationStatus>,
-  );
-}
-
-function mapClient(row: ClientRow): Client {
-  return {
-    id: row.id,
-    ownerId: row.account_id,
-    name: row.name,
-    companyName: row.company_name ?? undefined,
-    email: row.email,
-    phone: row.phone,
-    locationState: row.location_state ?? undefined,
-    locationCity: row.location_city ?? undefined,
-    distributor: row.distributor ?? undefined,
-    segment: row.segment ?? undefined,
-    monthlySavings:
-      row.monthly_savings === null || row.monthly_savings === undefined
-        ? undefined
-        : Number(row.monthly_savings),
-    status: normalizeClientStatus(row.status),
-    createdAt: row.created_at,
-  };
-}
-
-function mapTask(row: TaskRow): Task {
-  return {
-    id: row.id,
-    ownerId: row.account_id,
-    title: row.title,
-    description: row.description ?? undefined,
-    dueAt: row.due_at ?? undefined,
-    clientId: row.client_id ?? undefined,
-    priority: row.priority,
-    done: row.done,
-    createdAt: row.created_at,
-  };
-}
-
-function mapProposal(row: ProposalRow): Proposal {
-  return {
-    id: row.id,
-    ownerId: row.account_id,
-    clientId: row.client_id,
-    title: row.title,
-    amount: Number(row.amount ?? 0),
-    status: row.status,
-    createdAt: row.created_at,
-    sentAt: row.sent_at ?? undefined,
-  };
-}
-
-function mapSimulation(row: SimulationRow): Simulation {
-  return {
-    id: row.id,
-    userId: row.user_id,
-    clientId: row.client_id,
-    simulationData: row.simulation_data,
-    resultsData: row.results_data,
-    status: row.status,
-    pdfUrl: row.pdf_url ?? undefined,
-    createdAt: row.created_at,
-    sentAt: row.sent_at ?? undefined,
-  };
-}
-
-function mapSubscription(paymentStatus?: string, paymentPlan?: string, paymentNextDueAt?: string): Subscription {
-  const statusByPayment: Record<string, SubscriptionStatus> = {
-    em_dia: "ativo",
-    trial: "trial",
-    pendente: "expirado",
-    atrasado: "expirado",
-    cancelado: "expirado",
-    nao_iniciado: "trial",
-  };
-
-  return {
-    status: statusByPayment[paymentStatus ?? ""] ?? "trial",
-    plan: paymentPlan || "musclePro Consultor",
-    nextDueAt: paymentNextDueAt,
-    trialEndsAt: paymentStatus === "trial" ? paymentNextDueAt : undefined,
-  };
-}
-
-function isMissingTableError(error?: { code?: string; message?: string } | null) {
-  if (!error) return false;
-  return (
-    error.code === "42P01" ||
-    error.message?.toLowerCase().includes("schema cache") ||
-    error.message?.toLowerCase().includes("could not find the table")
-  );
+  return fallback;
 }
 
 export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
-  const { profile } = useConsultorSession();
-  const ownerId = profile?.id ?? "";
-  const authUserId = profile?.authUserId ?? "";
+  const { profile, refreshProfile } = useAccountSession();
+  const accountId = profile?.id ?? null;
+  const authorName = profile?.fullName ?? "Equipe";
 
-  const [clients, setClients] = useState<Client[]>([]);
-  const [customSegments, setCustomSegments] = useState<string[]>([]);
-  const [migrationStepOverrides, setMigrationStepOverrides] = useState<Record<string, ClientMigrationStep[]>>({});
-  const [clientActivities, setClientActivities] = useState<Record<string, ClientActivity[]>>({});
-  const [pipelineCards, setPipelineCards] = useState<Record<string, PipelineCard>>({});
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [proposals, setProposals] = useState<Proposal[]>([]);
-  const [simulations, setSimulations] = useState<Simulation[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const subscription = useMemo(
-    () => mapSubscription(profile?.paymentStatus, profile?.paymentPlan, profile?.paymentNextDueAt),
-    [profile?.paymentNextDueAt, profile?.paymentPlan, profile?.paymentStatus],
-  );
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const clientSegments = useMemo(
-    () => mergeSegments([...DEFAULT_CLIENT_SEGMENTS], customSegments, clients.map((c) => c.segment)),
-    [clients, customSegments],
-  );
+  const [units, setUnits] = useState<Unit[]>([]);
+  const [staff, setStaff] = useState<Staff[]>([]);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [activities, setActivities] = useState<StudentActivity[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  const fail = useCallback((err: unknown, fallback: string) => {
+    const message = describeError(err, fallback);
+    console.error(fallback, err);
+    setActionError(message);
+  }, []);
+
+  // ───────────── carga ─────────────
 
   const refresh = useCallback(async () => {
-    if (!ownerId) return;
-
+    if (!accountId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
 
-    const [
-      clientsResult,
-      tasksResult,
-      proposalsResult,
-      simulationsResult,
-      pipelineCardsResult,
-      activitiesResult,
-      segmentsResult,
-      migrationStepsResult,
-      migrationDocumentsResult,
-    ] = await Promise.all([
-      supabase.from("clients").select("*").order("created_at", { ascending: false }),
-      supabase.from("tasks").select("*").order("created_at", { ascending: false }),
-      supabase.from("proposals").select("*").order("created_at", { ascending: false }),
-      supabase.from("simulations").select("*").order("created_at", { ascending: false }),
-      supabase.from("pipeline_cards").select("*"),
-      supabase.from("client_activities").select("*").order("created_at", { ascending: false }),
-      supabase.from("client_segments").select("*").order("name", { ascending: true }),
-      supabase.from("client_migration_steps").select("*").order("updated_at", { ascending: false }),
-      supabase.from("client_migration_documents").select("*").order("created_at", { ascending: false }),
-    ]);
+    const [unitsRes, staffRes, plansRes, studentsRes, paymentsRes, tasksRes, activitiesRes] =
+      await Promise.all([
+        supabase.from("units").select("*").order("created_at", { ascending: true }),
+        supabase.from("staff").select("*").order("full_name", { ascending: true }),
+        supabase.from("plans").select("*").order("amount", { ascending: true }),
+        supabase.from("students").select("*").order("full_name", { ascending: true }),
+        supabase.from("payments").select("*").order("due_at", { ascending: false }),
+        supabase.from("tasks").select("*").order("created_at", { ascending: false }),
+        supabase
+          .from("student_activities")
+          .select("id, student_id, kind, title, body, metadata, created_at")
+          .order("created_at", { ascending: false }),
+      ]);
 
-    const simulationsTableMissing = isMissingTableError(simulationsResult.error);
-    const pipelineCardsTableMissing = isMissingTableError(pipelineCardsResult.error);
-    const activitiesTableMissing = isMissingTableError(activitiesResult.error);
-    const segmentsTableMissing = isMissingTableError(segmentsResult.error);
-    const migrationStepsTableMissing = isMissingTableError(migrationStepsResult.error);
-    const migrationDocumentsTableMissing = isMissingTableError(migrationDocumentsResult.error);
+    const firstError = [unitsRes, staffRes, plansRes, studentsRes, paymentsRes, tasksRes, activitiesRes].find(
+      (r) => r.error,
+    )?.error;
 
-    if (
-      clientsResult.error ||
-      tasksResult.error ||
-      proposalsResult.error ||
-      (simulationsResult.error && !simulationsTableMissing) ||
-      (pipelineCardsResult.error && !pipelineCardsTableMissing) ||
-      (activitiesResult.error && !activitiesTableMissing) ||
-      (segmentsResult.error && !segmentsTableMissing) ||
-      (migrationStepsResult.error && !migrationStepsTableMissing) ||
-      (migrationDocumentsResult.error && !migrationDocumentsTableMissing)
-    ) {
-      const firstBlockingError =
-        clientsResult.error ??
-        tasksResult.error ??
-        proposalsResult.error ??
-        (!simulationsTableMissing ? simulationsResult.error : null) ??
-        (!pipelineCardsTableMissing ? pipelineCardsResult.error : null) ??
-        (!activitiesTableMissing ? activitiesResult.error : null) ??
-        (!segmentsTableMissing ? segmentsResult.error : null) ??
-        (!migrationStepsTableMissing ? migrationStepsResult.error : null) ??
-        (!migrationDocumentsTableMissing ? migrationDocumentsResult.error : null);
-      setError(
-        firstBlockingError?.message ?? "Não foi possível carregar a plataforma.",
-      );
+    if (firstError) {
+      setError(firstError.message);
       setLoading(false);
       return;
     }
 
-    setClients((clientsResult.data ?? []).map((row) => mapClient(row as ClientRow)));
-    setTasks((tasksResult.data ?? []).map((row) => mapTask(row as TaskRow)));
-    setProposals((proposalsResult.data ?? []).map((row) => mapProposal(row as ProposalRow)));
-    setSimulations(
-      simulationsTableMissing
-        ? []
-        : (simulationsResult.data ?? []).map((row) => mapSimulation(row as SimulationRow)),
-    );
-    setCustomSegments(
-      segmentsTableMissing
-        ? []
-        : mergeSegments((segmentsResult.data ?? []).map((row) => (row as ClientSegmentRow).name)),
-    );
-
-    if (!pipelineCardsTableMissing) {
-      const cardMap: Record<string, PipelineCard> = {};
-      (pipelineCardsResult.data ?? []).forEach((row) => {
-        const card = mapPipelineCard(row as PipelineCardRow);
-        cardMap[card.clientId] = card;
-      });
-      setPipelineCards(cardMap);
-    } else {
-      setPipelineCards({});
-    }
-
-    if (!activitiesTableMissing) {
-      const grouped: Record<string, ClientActivity[]> = {};
-      (activitiesResult.data ?? []).forEach((row) => {
-        const act = mapClientActivity(row as ClientActivityRow);
-        if (!grouped[act.clientId]) grouped[act.clientId] = [];
-        grouped[act.clientId].push(act);
-      });
-      setClientActivities(grouped);
-    } else {
-      setClientActivities({});
-    }
-
-    if (!migrationStepsTableMissing) {
-      const documentsByStep: Record<string, ClientMigrationDocument[]> = {};
-      if (!migrationDocumentsTableMissing) {
-        (migrationDocumentsResult.data ?? []).forEach((row) => {
-          const documentRow = row as ClientMigrationDocumentRow;
-          if (!documentsByStep[documentRow.migration_step_id]) {
-            documentsByStep[documentRow.migration_step_id] = [];
-          }
-          documentsByStep[documentRow.migration_step_id].push(mapMigrationDocument(documentRow));
-        });
-      }
-
-      const groupedSteps: Record<string, ClientMigrationStep[]> = {};
-      (migrationStepsResult.data ?? []).forEach((row) => {
-        const stepRow = row as ClientMigrationStepRow;
-        const step = mapMigrationStep(stepRow, documentsByStep[stepRow.id] ?? []);
-        groupedSteps[step.clientId] = upsertMigrationStepInList(groupedSteps[step.clientId] ?? [], step);
-      });
-      setMigrationStepOverrides(groupedSteps);
-    } else {
-      setMigrationStepOverrides({});
-    }
-
+    setUnits(((unitsRes.data ?? []) as UnitRow[]).map(mapUnit));
+    setStaff(((staffRes.data ?? []) as StaffRow[]).map(mapStaff));
+    setPlans(((plansRes.data ?? []) as PlanRow[]).map(mapPlan));
+    setStudents(((studentsRes.data ?? []) as StudentRow[]).map(mapStudent));
+    setPayments(((paymentsRes.data ?? []) as PaymentRow[]).map(mapPayment));
+    setTasks(((tasksRes.data ?? []) as TaskRow[]).map(mapTask));
+    setActivities(((activitiesRes.data ?? []) as ActivityRow[]).map((r) => mapActivity(r, authorName)));
     setLoading(false);
-  }, [ownerId]);
+  }, [accountId, authorName]);
 
-  useEffect(() => {
-    if (!ownerId) return;
-    void refresh();
-  }, [ownerId, refresh]);
-
-  const refreshNotifications = useCallback(async () => {
-    if (!ownerId) return;
-    const { data, error: fetchError } = await supabase
+  const loadNotifications = useCallback(async () => {
+    if (!accountId) return;
+    const { data, error: loadError } = await supabase
       .from("v_my_announcements")
-      .select("*")
+      .select("id, kind, title, body, href, published_at, created_at, read")
       .order("published_at", { ascending: false })
       .limit(40);
-
-    if (fetchError) {
-      setNotifications([]);
-      return;
-    }
-
-    setNotifications((data ?? []).map((row) => mapAnnouncement(row as AnnouncementRow)));
-  }, [ownerId]);
+    if (loadError) return;
+    setNotifications(((data ?? []) as AnnouncementRow[]).map(mapNotification));
+  }, [accountId]);
 
   useEffect(() => {
-    if (!ownerId) {
-      setNotifications([]);
-      return;
-    }
+    void refresh();
+    void loadNotifications();
+  }, [refresh, loadNotifications]);
 
-    void refreshNotifications();
-
+  useEffect(() => {
+    if (!accountId) return;
     const channel = supabase
-      .channel(`announcements:${ownerId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "platform_announcements" },
-        () => {
-          void refreshNotifications();
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "platform_announcement_reads",
-          filter: `account_id=eq.${ownerId}`,
-        },
-        () => {
-          void refreshNotifications();
-        },
-      )
+      .channel(`announcements-${accountId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "platform_announcements" }, () => {
+        void loadNotifications();
+      })
       .subscribe();
-
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [ownerId, refreshNotifications]);
+  }, [accountId, loadNotifications]);
 
-  const pushActivity = useCallback(
-    async (clientId: string, input: NewClientActivity): Promise<ClientActivity | null> => {
-      if (!ownerId) return null;
+  // ───────────── derivados ─────────────
 
+  const billingMap = useMemo(() => {
+    const map = new Map<string, StudentBilling>();
+    for (const s of students) map.set(s.id, computeBilling(s, payments));
+    return map;
+  }, [students, payments]);
+
+  const billingFor = useCallback(
+    (studentId: string): StudentBilling =>
+      billingMap.get(studentId) ?? { state: "sem_plano", overdueDays: 0, overdueAmount: 0 },
+    [billingMap],
+  );
+
+  const studentById = useCallback((id: string) => students.find((s) => s.id === id), [students]);
+  const planById = useCallback((id?: string) => (id ? plans.find((p) => p.id === id) : undefined), [plans]);
+  const unitById = useCallback((id?: string) => (id ? units.find((u) => u.id === id) : undefined), [units]);
+  const staffById = useCallback((id?: string) => (id ? staff.find((s) => s.id === id) : undefined), [staff]);
+  const paymentsFor = useCallback(
+    (studentId: string) => payments.filter((p) => p.studentId === studentId),
+    [payments],
+  );
+  const activitiesFor = useCallback(
+    (studentId: string) => activities.filter((a) => a.studentId === studentId),
+    [activities],
+  );
+
+  const metrics = useMemo<DashboardMetrics>(() => {
+    if (!accountId) return EMPTY_METRICS;
+    const active = students.filter((s) => s.status === "ativo");
+    let delinquentStudents = 0;
+    let delinquentAmount = 0;
+    let dueSoonStudents = 0;
+    for (const s of active) {
+      const b = billingMap.get(s.id);
+      if (!b) continue;
+      if (b.state === "inadimplente") {
+        delinquentStudents += 1;
+        delinquentAmount += b.overdueAmount;
+      } else if (b.state === "a_vencer") {
+        dueSoonStudents += 1;
+      }
+    }
+    const now = Date.now();
+    const open = tasks.filter((t) => !t.done);
+    return {
+      activeStudents: active.length,
+      delinquentStudents,
+      delinquentAmount,
+      dueSoonStudents,
+      activeStaff: staff.filter((s) => s.active).length,
+      openTasks: open.length,
+      overdueTasks: open.filter((t) => t.dueAt && new Date(t.dueAt).getTime() < now).length,
+      activePlans: plans.filter((p) => p.active).length,
+      monthlyRecurring: monthlyRecurring(students, plans),
+    };
+  }, [accountId, students, billingMap, tasks, staff, plans]);
+
+  const recommendedActions = useMemo(
+    () => buildNextBestActions({ students, payments, plans, units, staff, tasks, billingFor }),
+    [students, payments, plans, units, staff, tasks, billingFor],
+  );
+
+  const subscription = useMemo(
+    () => mapSubscription(profile?.paymentStatus, profile?.paymentPlan, profile?.paymentNextDueAt),
+    [profile?.paymentStatus, profile?.paymentPlan, profile?.paymentNextDueAt],
+  );
+
+  // ───────────── histórico ─────────────
+
+  const insertActivity = useCallback(
+    async (studentId: string, input: NewStudentActivity) => {
+      if (!accountId) return null;
       const { data, error: insertError } = await supabase
-        .from("client_activities")
+        .from("student_activities")
         .insert({
-          account_id: ownerId,
-          client_id: clientId,
-          created_by: authUserId || null,
+          account_id: accountId,
+          student_id: studentId,
+          created_by: profile?.authUserId ?? null,
           kind: input.kind,
           title: input.title,
           body: input.body ?? null,
-          metadata: input.metadata ?? null,
+          metadata: { ...(input.metadata ?? {}), by: authorName },
         })
-        .select("*")
+        .select("id, student_id, kind, title, body, metadata, created_at")
         .single();
-
-      if (insertError || !data) {
-        if (isMissingTableError(insertError)) {
-          const fallback: ClientActivity = {
-            id: `${clientId}-act-${input.kind}-${Date.now()}`,
-            clientId,
-            kind: input.kind,
-            by: input.by ?? "Você",
-            at: new Date().toISOString(),
-            title: input.title,
-            body: input.body,
-          };
-          setClientActivities((prev) => ({
-            ...prev,
-            [clientId]: [fallback, ...(prev[clientId] ?? [])],
-          }));
-          return fallback;
-        }
-        setError(insertError?.message ?? "Não foi possível registrar a atividade.");
-        return null;
-      }
-
-      const activity = mapClientActivity(data as ClientActivityRow);
-      setClientActivities((prev) => ({
-        ...prev,
-        [clientId]: [activity, ...(prev[clientId] ?? [])],
-      }));
+      if (insertError || !data) return null;
+      const activity = mapActivity(data as ActivityRow, authorName);
+      setActivities((prev) => [activity, ...prev]);
       return activity;
     },
-    [ownerId, authUserId],
+    [accountId, authorName, profile?.authUserId],
   );
 
-  const addClientSegment = useCallback<Ctx["addClientSegment"]>((name) => {
-    const segment = normalizeSegmentName(name);
-    if (!segment) return null;
-    setCustomSegments((prev) => mergeSegments(prev, [segment]));
-    if (ownerId && authUserId) {
-      void supabase
-        .from("client_segments")
-        .upsert(
-          {
-            account_id: ownerId,
-            name: segment,
-            created_by: authUserId,
-          },
-          { onConflict: "account_id,name", ignoreDuplicates: true },
-        )
-        .then(({ error: upsertError }) => {
-          if (upsertError && !isMissingTableError(upsertError)) {
-            setError(upsertError.message);
-          }
-        });
-    }
-    return segment;
-  }, [authUserId, ownerId]);
+  const addStudentActivity = useCallback(
+    async (studentId: string, input: NewStudentActivity) => {
+      const activity = await insertActivity(studentId, input);
+      if (!activity) fail(null, "Não foi possível registrar a atividade.");
+      return activity;
+    },
+    [insertActivity, fail],
+  );
 
-  const addClient = useCallback<Ctx["addClient"]>(
-    async (input) => {
-      if (!ownerId) return null;
+  const removeStudentActivity = useCallback(
+    async (activityId: string) => {
+      const { error: deleteError } = await supabase.from("student_activities").delete().eq("id", activityId);
+      if (deleteError) {
+        fail(deleteError, "Não foi possível excluir a atividade.");
+        return false;
+      }
+      setActivities((prev) => prev.filter((a) => a.id !== activityId));
+      return true;
+    },
+    [fail],
+  );
 
+  // ───────────── empresa ─────────────
+
+  const updateCompanyProfile = useCallback(
+    async (patch: CompanyProfilePatch) => {
+      const { error: rpcError } = await supabase.rpc("update_company_profile", {
+        p_company_name: patch.companyName,
+        p_business_type: patch.businessType,
+        p_document_type: patch.documentType,
+        p_document: patch.document,
+        p_address: nullable(patch.address),
+        p_contact_phone: nullable(patch.contactPhone),
+        p_contact_email: nullable(patch.contactEmail),
+      });
+      if (rpcError) {
+        fail(rpcError, "Não foi possível salvar os dados da empresa.");
+        return false;
+      }
+      await refreshProfile();
+      return true;
+    },
+    [fail, refreshProfile],
+  );
+
+  // ───────────── filiais ─────────────
+
+  const addUnit = useCallback(
+    async (input: NewUnit) => {
+      if (!accountId) return null;
       const { data, error: insertError } = await supabase
-        .from("clients")
+        .from("units")
         .insert({
-          account_id: ownerId,
+          account_id: accountId,
           name: input.name,
-          email: input.email,
-          phone: input.phone,
-          company_name: input.companyName ?? null,
-          location_state: input.locationState ?? null,
-          location_city: input.locationCity ?? null,
-          distributor: input.distributor ?? null,
-          segment: input.segment ?? null,
-          status: input.status ?? "novo",
+          address: nullable(input.address),
+          city: nullable(input.city),
+          state: nullable(input.state),
+          phone: nullable(input.phone),
+          is_main: input.isMain ?? units.length === 0,
         })
         .select("*")
         .single();
-
-      if (insertError) {
-        setError(insertError.message);
+      if (insertError || !data) {
+        fail(insertError, "Não foi possível criar a unidade.");
         return null;
       }
-
-      setError(null);
-      const client = mapClient(data as ClientRow);
-      if (client.segment) addClientSegment(client.segment);
-      setClients((prev) => [client, ...prev]);
-      return client;
+      const unit = mapUnit(data as UnitRow);
+      setUnits((prev) => [...prev, unit]);
+      return unit;
     },
-    [addClientSegment, ownerId],
+    [accountId, units.length, fail],
   );
 
-  const addTask = useCallback<Ctx["addTask"]>(
-    async (input) => {
-      if (!ownerId) return null;
+  const updateUnit = useCallback(
+    async (id: string, patch: UnitPatch) => {
+      const row: Record<string, unknown> = {};
+      if (patch.name !== undefined) row.name = patch.name;
+      if (patch.address !== undefined) row.address = nullable(patch.address);
+      if (patch.city !== undefined) row.city = nullable(patch.city);
+      if (patch.state !== undefined) row.state = nullable(patch.state);
+      if (patch.phone !== undefined) row.phone = nullable(patch.phone);
+      if (patch.isMain !== undefined) row.is_main = patch.isMain;
+      if (patch.active !== undefined) row.active = patch.active;
+      const { data, error: updateError } = await supabase.from("units").update(row).eq("id", id).select("*").single();
+      if (updateError || !data) {
+        fail(updateError, "Não foi possível atualizar a unidade.");
+        return null;
+      }
+      const unit = mapUnit(data as UnitRow);
+      setUnits((prev) => prev.map((u) => (u.id === id ? unit : u)));
+      return unit;
+    },
+    [fail],
+  );
 
+  const removeUnit = useCallback(
+    async (id: string) => {
+      const { error: deleteError } = await supabase.from("units").delete().eq("id", id);
+      if (deleteError) {
+        fail(deleteError, "Não foi possível excluir a unidade.");
+        return false;
+      }
+      setUnits((prev) => prev.filter((u) => u.id !== id));
+      setStaff((prev) => prev.map((s) => (s.unitId === id ? { ...s, unitId: undefined } : s)));
+      setStudents((prev) => prev.map((s) => (s.unitId === id ? { ...s, unitId: undefined } : s)));
+      return true;
+    },
+    [fail],
+  );
+
+  // ───────────── equipe ─────────────
+
+  const staffRowFrom = (input: Partial<NewStaff & { active: boolean }>) => {
+    const row: Record<string, unknown> = {};
+    if (input.fullName !== undefined) row.full_name = input.fullName;
+    if (input.role !== undefined) row.role = input.role;
+    if (input.roleLabel !== undefined) row.role_label = nullable(input.roleLabel);
+    if (input.cpf !== undefined) row.cpf = nullable(input.cpf);
+    if (input.email !== undefined) row.email = nullable(input.email);
+    if (input.phone !== undefined) row.phone = nullable(input.phone);
+    if (input.unitId !== undefined) row.unit_id = nullable(input.unitId);
+    if (input.startedAt !== undefined) row.started_at = nullable(input.startedAt);
+    if (input.endedAt !== undefined) row.ended_at = nullable(input.endedAt);
+    if (input.canRegisterStudents !== undefined) row.can_register_students = input.canRegisterStudents;
+    if (input.canSendPaymentLinks !== undefined) row.can_send_payment_links = input.canSendPaymentLinks;
+    if (input.canCreateWorkouts !== undefined) row.can_create_workouts = input.canCreateWorkouts;
+    if (input.notes !== undefined) row.notes = nullable(input.notes);
+    if (input.active !== undefined) row.active = input.active;
+    return row;
+  };
+
+  const addStaff = useCallback(
+    async (input: NewStaff) => {
+      if (!accountId) return null;
+      const { data, error: insertError } = await supabase
+        .from("staff")
+        .insert({ account_id: accountId, ...staffRowFrom(input) })
+        .select("*")
+        .single();
+      if (insertError || !data) {
+        fail(insertError, "Não foi possível cadastrar o funcionário.");
+        return null;
+      }
+      const member = mapStaff(data as StaffRow);
+      setStaff((prev) => [...prev, member].sort((a, b) => a.fullName.localeCompare(b.fullName)));
+      return member;
+    },
+    [accountId, fail],
+  );
+
+  const updateStaff = useCallback(
+    async (id: string, patch: StaffPatch) => {
+      const { data, error: updateError } = await supabase
+        .from("staff")
+        .update(staffRowFrom(patch))
+        .eq("id", id)
+        .select("*")
+        .single();
+      if (updateError || !data) {
+        fail(updateError, "Não foi possível atualizar o funcionário.");
+        return null;
+      }
+      const member = mapStaff(data as StaffRow);
+      setStaff((prev) => prev.map((s) => (s.id === id ? member : s)));
+      return member;
+    },
+    [fail],
+  );
+
+  const removeStaff = useCallback(
+    async (id: string) => {
+      const { error: deleteError } = await supabase.from("staff").delete().eq("id", id);
+      if (deleteError) {
+        fail(deleteError, "Não foi possível excluir o funcionário.");
+        return false;
+      }
+      setStaff((prev) => prev.filter((s) => s.id !== id));
+      return true;
+    },
+    [fail],
+  );
+
+  // ───────────── planos ─────────────
+
+  const addPlan = useCallback(
+    async (input: NewPlan) => {
+      if (!accountId) return null;
+      const { data, error: insertError } = await supabase
+        .from("plans")
+        .insert({
+          account_id: accountId,
+          name: input.name,
+          amount: input.amount,
+          frequency: input.frequency,
+          description: nullable(input.description),
+        })
+        .select("*")
+        .single();
+      if (insertError || !data) {
+        fail(insertError, "Não foi possível criar o plano.");
+        return null;
+      }
+      const plan = mapPlan(data as PlanRow);
+      setPlans((prev) => [...prev, plan].sort((a, b) => a.amount - b.amount));
+      return plan;
+    },
+    [accountId, fail],
+  );
+
+  const updatePlan = useCallback(
+    async (id: string, patch: PlanPatch) => {
+      const row: Record<string, unknown> = {};
+      if (patch.name !== undefined) row.name = patch.name;
+      if (patch.amount !== undefined) row.amount = patch.amount;
+      if (patch.frequency !== undefined) row.frequency = patch.frequency;
+      if (patch.description !== undefined) row.description = nullable(patch.description);
+      if (patch.active !== undefined) row.active = patch.active;
+      const { data, error: updateError } = await supabase.from("plans").update(row).eq("id", id).select("*").single();
+      if (updateError || !data) {
+        fail(updateError, "Não foi possível atualizar o plano.");
+        return null;
+      }
+      const plan = mapPlan(data as PlanRow);
+      setPlans((prev) => prev.map((p) => (p.id === id ? plan : p)).sort((a, b) => a.amount - b.amount));
+      return plan;
+    },
+    [fail],
+  );
+
+  const removePlan = useCallback(
+    async (id: string) => {
+      const { error: deleteError } = await supabase.from("plans").delete().eq("id", id);
+      if (deleteError) {
+        fail(deleteError, "Não foi possível excluir o plano.");
+        return false;
+      }
+      setPlans((prev) => prev.filter((p) => p.id !== id));
+      setStudents((prev) => prev.map((s) => (s.planId === id ? { ...s, planId: undefined } : s)));
+      return true;
+    },
+    [fail],
+  );
+
+  // ───────────── cobranças ─────────────
+
+  const insertPayment = useCallback(
+    async (input: NewPayment) => {
+      if (!accountId) return null;
+      const { data, error: insertError } = await supabase
+        .from("payments")
+        .insert({
+          account_id: accountId,
+          student_id: input.studentId,
+          plan_id: nullable(input.planId),
+          amount: input.amount,
+          due_at: input.dueAt,
+          reference_label: nullable(input.referenceLabel),
+          created_by: profile?.authUserId ?? null,
+        })
+        .select("*")
+        .single();
+      if (insertError || !data) return null;
+      const payment = mapPayment(data as PaymentRow);
+      setPayments((prev) => [payment, ...prev]);
+      return payment;
+    },
+    [accountId, profile?.authUserId],
+  );
+
+  const addPayment = useCallback(
+    async (input: NewPayment) => {
+      const payment = await insertPayment(input);
+      if (!payment) {
+        fail(null, "Não foi possível criar a cobrança.");
+        return null;
+      }
+      await insertActivity(input.studentId, {
+        kind: "cobranca",
+        title: "Cobrança criada",
+        body: `${formatCurrency(input.amount)} com vencimento em ${formatDateValue(input.dueAt)}.`,
+      });
+      return payment;
+    },
+    [insertPayment, insertActivity, fail],
+  );
+
+  // Abre o ciclo do plano: a primeira cobrança vence na data de início.
+  const startPlanCycle = useCallback(
+    async (student: Student, plan: Plan, startDate: string) => {
+      const existingPending = payments.some(
+        (p) => p.studentId === student.id && p.status === "pendente" && p.planId === plan.id,
+      );
+      if (existingPending) return;
+      await insertPayment({
+        studentId: student.id,
+        planId: plan.id,
+        amount: plan.amount,
+        dueAt: startDate,
+        referenceLabel: cycleLabel(startDate, plan),
+      });
+    },
+    [payments, insertPayment],
+  );
+
+  const registerPayment = useCallback(
+    async (paymentId: string, input: RegisterPaymentInput) => {
+      const payment = payments.find((p) => p.id === paymentId);
+      if (!payment) return false;
+      const paidAt = input.paidAt ? new Date(`${input.paidAt}T12:00:00`).toISOString() : new Date().toISOString();
+      const { data, error: updateError } = await supabase
+        .from("payments")
+        .update({
+          status: "pago",
+          paid_at: paidAt,
+          method: input.method ?? null,
+          notes: nullable(input.notes),
+          amount: input.amount ?? payment.amount,
+        })
+        .eq("id", paymentId)
+        .select("*")
+        .single();
+      if (updateError || !data) {
+        fail(updateError, "Não foi possível registrar o pagamento.");
+        return false;
+      }
+      const paid = mapPayment(data as PaymentRow);
+      setPayments((prev) => prev.map((p) => (p.id === paymentId ? paid : p)));
+
+      await insertActivity(payment.studentId, {
+        kind: "pagamento",
+        title: "Pagamento registrado",
+        body: `${formatCurrency(paid.amount)} referente a ${paid.referenceLabel ?? formatDateValue(paid.dueAt)}${
+          paid.method ? ` · ${paid.method}` : ""
+        }.`,
+      });
+
+      // Próximo ciclo: só quando o aluno segue ativo no mesmo plano e não há
+      // outra cobrança pendente.
+      const student = students.find((s) => s.id === payment.studentId);
+      const plan = student?.planId ? plans.find((p) => p.id === student.planId) : undefined;
+      const otherPending = payments.some(
+        (p) => p.studentId === payment.studentId && p.status === "pendente" && p.id !== paymentId,
+      );
+      if (student && student.status === "ativo" && plan && paid.planId === plan.id && !otherPending) {
+        const due = nextDueDate(paid.dueAt, plan);
+        await insertPayment({
+          studentId: student.id,
+          planId: plan.id,
+          amount: plan.amount,
+          dueAt: due,
+          referenceLabel: cycleLabel(due, plan),
+        });
+      }
+      return true;
+    },
+    [payments, students, plans, insertActivity, insertPayment, fail],
+  );
+
+  const cancelPayment = useCallback(
+    async (paymentId: string) => {
+      const { data, error: updateError } = await supabase
+        .from("payments")
+        .update({ status: "cancelado" })
+        .eq("id", paymentId)
+        .select("*")
+        .single();
+      if (updateError || !data) {
+        fail(updateError, "Não foi possível cancelar a cobrança.");
+        return false;
+      }
+      const cancelled = mapPayment(data as PaymentRow);
+      setPayments((prev) => prev.map((p) => (p.id === paymentId ? cancelled : p)));
+      return true;
+    },
+    [fail],
+  );
+
+  const logCharge = useCallback(
+    async (studentId: string, channel: "whatsapp" | "lembrete", payment?: Payment) => {
+      await insertActivity(studentId, {
+        kind: "cobranca",
+        title: channel === "whatsapp" ? "Cobrança enviada por WhatsApp" : "Lembrete de vencimento enviado",
+        body: payment
+          ? `${formatCurrency(payment.amount)} · vencimento ${formatDateValue(payment.dueAt)}.`
+          : undefined,
+        metadata: { channel, paymentId: payment?.id },
+      });
+    },
+    [insertActivity],
+  );
+
+  // ───────────── alunos ─────────────
+
+  const studentRowFrom = (input: Partial<NewStudent>) => {
+    const row: Record<string, unknown> = {};
+    if (input.fullName !== undefined) row.full_name = input.fullName;
+    if (input.whatsapp !== undefined) row.whatsapp = nullable(input.whatsapp);
+    if (input.email !== undefined) row.email = nullable(input.email);
+    if (input.cpf !== undefined) row.cpf = nullable(input.cpf);
+    if (input.birthDate !== undefined) row.birth_date = nullable(input.birthDate);
+    if (input.unitId !== undefined) row.unit_id = nullable(input.unitId);
+    if (input.planId !== undefined) row.plan_id = nullable(input.planId);
+    if (input.planStartedAt !== undefined) row.plan_started_at = nullable(input.planStartedAt);
+    if (input.medicalNotes !== undefined) row.medical_notes = nullable(input.medicalNotes);
+    if (input.emergencyContactName !== undefined) row.emergency_contact_name = nullable(input.emergencyContactName);
+    if (input.emergencyContactPhone !== undefined) row.emergency_contact_phone = nullable(input.emergencyContactPhone);
+    if (input.notes !== undefined) row.notes = nullable(input.notes);
+    if (input.status !== undefined) row.status = input.status;
+    return row;
+  };
+
+  const addStudent = useCallback(
+    async (input: NewStudent) => {
+      if (!accountId) return null;
+      const startDate = input.planStartedAt || todayValue();
+      const { data, error: insertError } = await supabase
+        .from("students")
+        .insert({ account_id: accountId, ...studentRowFrom({ ...input, planStartedAt: input.planId ? startDate : undefined }) })
+        .select("*")
+        .single();
+      if (insertError || !data) {
+        fail(insertError, "Não foi possível cadastrar o aluno.");
+        return null;
+      }
+      const student = mapStudent(data as StudentRow);
+      setStudents((prev) => [...prev, student].sort((a, b) => a.fullName.localeCompare(b.fullName)));
+
+      await insertActivity(student.id, { kind: "cadastro", title: "Aluno cadastrado" });
+
+      const plan = input.planId ? plans.find((p) => p.id === input.planId) : undefined;
+      if (plan) {
+        await startPlanCycle(student, plan, startDate);
+        await insertActivity(student.id, {
+          kind: "plano",
+          title: `Plano ${plan.name} vinculado`,
+          body: `${formatCurrency(plan.amount)} · início em ${formatDateValue(startDate)}.`,
+        });
+      }
+      return student;
+    },
+    [accountId, plans, insertActivity, startPlanCycle, fail],
+  );
+
+  const updateStudent = useCallback(
+    async (id: string, patch: StudentPatch) => {
+      const before = students.find((s) => s.id === id);
+      const { data, error: updateError } = await supabase
+        .from("students")
+        .update(studentRowFrom(patch))
+        .eq("id", id)
+        .select("*")
+        .single();
+      if (updateError || !data) {
+        fail(updateError, "Não foi possível atualizar o aluno.");
+        return null;
+      }
+      const student = mapStudent(data as StudentRow);
+      setStudents((prev) => prev.map((s) => (s.id === id ? student : s)).sort((a, b) => a.fullName.localeCompare(b.fullName)));
+
+      if (before && patch.status && patch.status !== before.status) {
+        await insertActivity(id, {
+          kind: "status",
+          title: patch.status === "ativo" ? "Aluno reativado" : "Aluno marcado como inativo",
+        });
+      }
+      return student;
+    },
+    [students, insertActivity, fail],
+  );
+
+  const assignPlan = useCallback(
+    async (studentId: string, planId: string, startDate: string) => {
+      const student = students.find((s) => s.id === studentId);
+      const plan = plans.find((p) => p.id === planId);
+      if (!student || !plan) return false;
+
+      // Cobranças pendentes do plano anterior deixam de valer.
+      const stale = payments.filter((p) => p.studentId === studentId && p.status === "pendente" && p.planId !== planId);
+      for (const p of stale) {
+        await supabase.from("payments").update({ status: "cancelado" }).eq("id", p.id);
+      }
+      if (stale.length > 0) {
+        const staleIds = new Set(stale.map((p) => p.id));
+        setPayments((prev) => prev.map((p) => (staleIds.has(p.id) ? { ...p, status: "cancelado" } : p)));
+      }
+
+      const updated = await updateStudent(studentId, { planId, planStartedAt: startDate });
+      if (!updated) return false;
+
+      await startPlanCycle(updated, plan, startDate);
+      await insertActivity(studentId, {
+        kind: "plano",
+        title: `Plano ${plan.name} vinculado`,
+        body: `${formatCurrency(plan.amount)} · início em ${formatDateValue(startDate)}.`,
+      });
+      return true;
+    },
+    [students, plans, payments, updateStudent, startPlanCycle, insertActivity],
+  );
+
+  const removeStudent = useCallback(
+    async (id: string) => {
+      const { error: deleteError } = await supabase.from("students").delete().eq("id", id);
+      if (deleteError) {
+        fail(deleteError, "Não foi possível excluir o aluno.");
+        return false;
+      }
+      setStudents((prev) => prev.filter((s) => s.id !== id));
+      setPayments((prev) => prev.filter((p) => p.studentId !== id));
+      setActivities((prev) => prev.filter((a) => a.studentId !== id));
+      setTasks((prev) => prev.map((t) => (t.studentId === id ? { ...t, studentId: undefined } : t)));
+      return true;
+    },
+    [fail],
+  );
+
+  // ───────────── tarefas ─────────────
+
+  const addTask = useCallback(
+    async (input: NewTask) => {
+      if (!accountId) return null;
       const { data, error: insertError } = await supabase
         .from("tasks")
         .insert({
-          account_id: ownerId,
+          account_id: accountId,
           title: input.title,
-          description: input.description ?? null,
-          due_at: input.dueAt ?? null,
-          client_id: input.clientId ?? null,
+          description: nullable(input.description),
+          due_at: nullable(input.dueAt),
+          student_id: nullable(input.studentId),
+          staff_id: nullable(input.staffId),
           priority: input.priority ?? "media",
-          done: false,
         })
         .select("*")
         .single();
-
-      if (insertError) {
-        setError(insertError.message);
+      if (insertError || !data) {
+        fail(insertError, "Não foi possível criar a tarefa.");
         return null;
       }
-
-      setError(null);
       const task = mapTask(data as TaskRow);
       setTasks((prev) => [task, ...prev]);
+      if (task.studentId) {
+        await insertActivity(task.studentId, { kind: "tarefa", title: `Tarefa criada: ${task.title}` });
+      }
       return task;
     },
-    [ownerId],
+    [accountId, insertActivity, fail],
   );
 
-  const updateClient = useCallback<Ctx["updateClient"]>(
-    async (id, patch) => {
-      if (!ownerId) return null;
-      const previous = clients.find((c) => c.id === id);
-
-      const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
-      if (patch.name !== undefined) payload.name = patch.name;
-      if (patch.email !== undefined) payload.email = patch.email;
-      if (patch.phone !== undefined) payload.phone = patch.phone;
-      if (patch.companyName !== undefined) payload.company_name = patch.companyName ?? null;
-      if (patch.locationState !== undefined) payload.location_state = patch.locationState ?? null;
-      if (patch.locationCity !== undefined) payload.location_city = patch.locationCity ?? null;
-      if (patch.distributor !== undefined) payload.distributor = patch.distributor ?? null;
-      if (patch.segment !== undefined) payload.segment = patch.segment ?? null;
-      if (patch.status !== undefined) payload.status = patch.status;
-      if (patch.monthlySavings !== undefined) payload.monthly_savings = patch.monthlySavings ?? null;
-
-      const { data, error: updateError } = await supabase
-        .from("clients")
-        .update(payload)
-        .eq("id", id)
-        .select("*")
-        .single();
-
+  const updateTask = useCallback(
+    async (id: string, patch: TaskPatch) => {
+      const row: Record<string, unknown> = {};
+      if (patch.title !== undefined) row.title = patch.title;
+      if (patch.description !== undefined) row.description = nullable(patch.description);
+      if (patch.dueAt !== undefined) row.due_at = nullable(patch.dueAt);
+      if (patch.studentId !== undefined) row.student_id = nullable(patch.studentId);
+      if (patch.staffId !== undefined) row.staff_id = nullable(patch.staffId);
+      if (patch.priority !== undefined) row.priority = patch.priority;
+      if (patch.done !== undefined) {
+        row.done = patch.done;
+        row.done_at = patch.done ? new Date().toISOString() : null;
+      }
+      const { data, error: updateError } = await supabase.from("tasks").update(row).eq("id", id).select("*").single();
       if (updateError || !data) {
-        setError(updateError?.message ?? "Não foi possível atualizar o cliente.");
+        fail(updateError, "Não foi possível atualizar a tarefa.");
         return null;
       }
-
-      setError(null);
-      const client = mapClient(data as ClientRow);
-      if (client.segment) addClientSegment(client.segment);
-      setClients((prev) => prev.map((c) => (c.id === id ? client : c)));
-      if (previous && patch.segment !== undefined && patch.segment !== previous.segment) {
-        const segment = patch.segment || "Sem segmento";
-        void pushActivity(id, {
-          kind: "segmento",
-          title: `Segmento atualizado para ${segment}`,
-        });
-      }
-      if (previous && patch.status !== undefined && patch.status !== previous.status) {
-        const nextStatus = patch.status;
-        void pushActivity(id, {
-          kind: "status",
-          title: `Status atualizado para ${CLIENT_STATUS_LABEL[nextStatus]}`,
-        });
-      }
-      return client;
+      const task = mapTask(data as TaskRow);
+      setTasks((prev) => prev.map((t) => (t.id === id ? task : t)));
+      return task;
     },
-    [addClientSegment, clients, ownerId, pushActivity],
+    [fail],
   );
 
-  const getBaseMigrationSteps = useCallback(
-    (clientId: string) => {
-      const client = clients.find((c) => c.id === clientId);
-      if (!client) return null;
-      return mergeMigrationSteps(
-        buildClientProfile(client, tasks, proposals).migrationSteps,
-        migrationStepOverrides[clientId] ?? [],
-      );
+  const toggleTask = useCallback(
+    async (id: string) => {
+      const task = tasks.find((t) => t.id === id);
+      if (!task) return;
+      await updateTask(id, { done: !task.done });
     },
-    [clients, migrationStepOverrides, proposals, tasks],
+    [tasks, updateTask],
   );
 
-  const updateClientMigrationStep = useCallback<Ctx["updateClientMigrationStep"]>(
-    async (clientId, stepName, patch) => {
-      const currentSteps = getBaseMigrationSteps(clientId);
-      if (!currentSteps) return null;
-
-      const now = new Date().toISOString();
-      const currentStep = currentSteps.find((step) => step.stepName === stepName);
-      if (!currentStep) return null;
-      const updatedStep: ClientMigrationStep = {
-        ...currentStep,
-        ...patch,
-        completedAt:
-          patch.status === "concluido"
-            ? patch.completedAt ?? currentStep.completedAt ?? now
-            : patch.status
-              ? undefined
-              : patch.completedAt !== undefined
-                ? patch.completedAt
-                : currentStep.completedAt,
-        updatedAt: now,
-      };
-      const previousPersistedSteps = migrationStepOverrides[clientId] ?? [];
-      setMigrationStepOverrides((prev) => ({
-        ...prev,
-        [clientId]: upsertMigrationStepInList(prev[clientId] ?? [], updatedStep),
-      }));
-
-      const { data, error: upsertError } = await supabase
-        .from("client_migration_steps")
-        .upsert(
-          {
-            client_id: clientId,
-            step_name: stepName,
-            status: updatedStep.status,
-            notes: updatedStep.notes ?? null,
-            completed_at: updatedStep.completedAt ?? null,
-            updated_at: now,
-          },
-          { onConflict: "client_id,step_name" },
-        )
-        .select("*")
-        .single();
-
-      if (upsertError || !data) {
-        if (!isMissingTableError(upsertError)) {
-          setError(upsertError?.message ?? "Não foi possível atualizar a etapa de migração.");
-        }
-        setMigrationStepOverrides((prev) => ({ ...prev, [clientId]: previousPersistedSteps }));
-        return null;
-      }
-
-      const persistedStep = mapMigrationStep(
-        data as ClientMigrationStepRow,
-        currentStep.documents,
-      );
-      setMigrationStepOverrides((prev) => ({
-        ...prev,
-        [clientId]: upsertMigrationStepInList(prev[clientId] ?? [], persistedStep),
-      }));
-      setError(null);
-
-      const statusLabel =
-        persistedStep.status === "concluido"
-          ? "concluída"
-          : persistedStep.status === "em_andamento"
-            ? "marcada como em andamento"
-            : "marcada como pendente";
-
-      void pushActivity(clientId, {
-        kind: "migracao",
-        title: `Etapa "${CLIENT_MIGRATION_LABEL[stepName]}" ${statusLabel}`,
-        body: patch.notes,
-      });
-
-      return persistedStep;
-    },
-    [getBaseMigrationSteps, migrationStepOverrides, pushActivity],
-  );
-
-  const addClientMigrationDocument = useCallback<Ctx["addClientMigrationDocument"]>(
-    async (clientId, stepName, document) => {
-      const currentSteps = getBaseMigrationSteps(clientId);
-      if (!currentSteps) return null;
-
-      const now = new Date().toISOString();
-      const currentStep = currentSteps.find((step) => step.stepName === stepName);
-      if (!currentStep) return null;
-      const nextDocument: ClientMigrationDocument = {
-        id: `${clientId}-${stepName}-doc-${Date.now()}`,
-        name: document.name,
-        sizeKb: document.sizeKb,
-        uploadedAt: now,
-      };
-      const updatedStep: ClientMigrationStep = {
-        ...currentStep,
-        updatedAt: now,
-        documents: [nextDocument, ...currentStep.documents],
-      };
-
-      const previousPersistedSteps = migrationStepOverrides[clientId] ?? [];
-      setMigrationStepOverrides((prev) => ({
-        ...prev,
-        [clientId]: upsertMigrationStepInList(prev[clientId] ?? [], updatedStep),
-      }));
-
-      const { data: stepData, error: stepError } = await supabase
-        .from("client_migration_steps")
-        .upsert(
-          {
-            client_id: clientId,
-            step_name: stepName,
-            status: currentStep.status,
-            notes: currentStep.notes ?? null,
-            completed_at: currentStep.completedAt ?? null,
-            updated_at: now,
-          },
-          { onConflict: "client_id,step_name" },
-        )
-        .select("*")
-        .single();
-
-      if (stepError || !stepData) {
-        if (!isMissingTableError(stepError)) {
-          setError(stepError?.message ?? "Não foi possível preparar a etapa de migração.");
-        }
-        setMigrationStepOverrides((prev) => ({ ...prev, [clientId]: previousPersistedSteps }));
-        return null;
-      }
-
-      const persistedStep = mapMigrationStep(stepData as ClientMigrationStepRow, currentStep.documents);
-      const { data: documentData, error: documentError } = await supabase
-        .from("client_migration_documents")
-        .insert({
-          migration_step_id: persistedStep.id,
-          name: document.name,
-          size_kb: document.sizeKb,
-        })
-        .select("*")
-        .single();
-
-      if (documentError || !documentData) {
-        if (!isMissingTableError(documentError)) {
-          setError(documentError?.message ?? "Não foi possível anexar o documento.");
-        }
-        setMigrationStepOverrides((prev) => ({ ...prev, [clientId]: previousPersistedSteps }));
-        return null;
-      }
-
-      const persistedDocument = mapMigrationDocument(documentData as ClientMigrationDocumentRow);
-      const nextStep = {
-        ...persistedStep,
-        documents: [persistedDocument, ...persistedStep.documents],
-      };
-
-      setMigrationStepOverrides((prev) => ({
-        ...prev,
-        [clientId]: upsertMigrationStepInList(prev[clientId] ?? [], nextStep),
-      }));
-      setError(null);
-
-      void pushActivity(clientId, {
-        kind: "documento",
-        title: `Documento anexado em "${CLIENT_MIGRATION_LABEL[stepName]}"`,
-        body: document.name,
-      });
-
-      return nextStep;
-    },
-    [getBaseMigrationSteps, migrationStepOverrides, pushActivity],
-  );
-
-  const removeClient = useCallback<Ctx["removeClient"]>(
-    async (id) => {
-      if (!ownerId) return false;
-      const previousClients = clients;
-      const previousTasks = tasks;
-      const previousProposals = proposals;
-      const previousSimulations = simulations;
-
-      setClients((prev) => prev.filter((c) => c.id !== id));
-      setTasks((prev) =>
-        prev.map((t) => (t.clientId === id ? { ...t, clientId: undefined } : t)),
-      );
-      setProposals((prev) => prev.filter((p) => p.clientId !== id));
-      setSimulations((prev) => prev.filter((s) => s.clientId !== id));
-
-      const { error: deleteError } = await supabase.from("clients").delete().eq("id", id);
-
+  const removeTask = useCallback(
+    async (id: string) => {
+      const { error: deleteError } = await supabase.from("tasks").delete().eq("id", id);
       if (deleteError) {
-        setError(deleteError.message);
-        setClients(previousClients);
-        setTasks(previousTasks);
-        setProposals(previousProposals);
-        setSimulations(previousSimulations);
+        fail(deleteError, "Não foi possível excluir a tarefa.");
         return false;
       }
-
-      setError(null);
+      setTasks((prev) => prev.filter((t) => t.id !== id));
       return true;
     },
-    [clients, ownerId, proposals, simulations, tasks],
+    [fail],
   );
 
-  const addProposal = useCallback<Ctx["addProposal"]>(
-    async (input) => {
-      if (!ownerId) return null;
-
-      const { data, error: insertError } = await supabase
-        .from("proposals")
-        .insert({
-          account_id: ownerId,
-          client_id: input.clientId,
-          title: input.title,
-          amount: input.amount,
-          status: input.status ?? "rascunho",
-          sent_at: input.sentAt ?? null,
-        })
-        .select("*")
-        .single();
-
-      if (insertError || !data) {
-        setError(insertError?.message ?? "Não foi possível criar a proposta.");
-        return null;
-      }
-
-      setError(null);
-      const proposal = mapProposal(data as ProposalRow);
-      setProposals((prev) => [proposal, ...prev]);
-      return proposal;
-    },
-    [ownerId],
-  );
-
-  const updateProposal = useCallback<Ctx["updateProposal"]>(
-    async (id, patch) => {
-      if (!ownerId) return null;
-
-      const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
-      if (patch.title !== undefined) payload.title = patch.title;
-      if (patch.amount !== undefined) payload.amount = patch.amount;
-      if (patch.status !== undefined) payload.status = patch.status;
-      if (patch.sentAt !== undefined) payload.sent_at = patch.sentAt ?? null;
-
-      const { data, error: updateError } = await supabase
-        .from("proposals")
-        .update(payload)
-        .eq("id", id)
-        .select("*")
-        .single();
-
-      if (updateError || !data) {
-        setError(updateError?.message ?? "Não foi possível atualizar a proposta.");
-        return null;
-      }
-
-      setError(null);
-      const proposal = mapProposal(data as ProposalRow);
-      setProposals((prev) => prev.map((p) => (p.id === id ? proposal : p)));
-      return proposal;
-    },
-    [ownerId],
-  );
-
-  const removeProposal = useCallback<Ctx["removeProposal"]>(
-    async (id) => {
-      const previous = proposals;
-      setProposals((prev) => prev.filter((p) => p.id !== id));
-
-      const { error: deleteError } = await supabase.from("proposals").delete().eq("id", id);
-      if (deleteError) {
-        setError(deleteError.message);
-        setProposals(previous);
-        return false;
-      }
-      setError(null);
-      return true;
-    },
-    [proposals],
-  );
-
-  const addSimulation = useCallback<Ctx["addSimulation"]>(
-    async (input) => {
-      if (!authUserId) return null;
-
-      const { data, error: insertError } = await supabase
-        .from("simulations")
-        .insert({
-          user_id: authUserId,
-          client_id: input.clientId,
-          simulation_data: input.simulationData,
-          results_data: input.resultsData,
-          status: input.status ?? "rascunho",
-          pdf_url: input.pdfUrl ?? null,
-          sent_at: input.sentAt ?? null,
-        })
-        .select("*")
-        .single();
-
-      if (insertError || !data) {
-        setError(
-          isMissingTableError(insertError)
-            ? "A tabela de simulações ainda não foi publicada no Supabase."
-            : insertError?.message ?? "Não foi possível salvar a simulação.",
-        );
-        return null;
-      }
-
-      setError(null);
-      const simulation = mapSimulation(data as SimulationRow);
-      setSimulations((prev) => [simulation, ...prev]);
-      return simulation;
-    },
-    [authUserId],
-  );
-
-  const updateSimulation = useCallback<Ctx["updateSimulation"]>(
-    async (id, patch) => {
-      if (!authUserId) return null;
-
-      const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
-      if (patch.simulationData !== undefined) payload.simulation_data = patch.simulationData;
-      if (patch.resultsData !== undefined) payload.results_data = patch.resultsData;
-      if (patch.status !== undefined) payload.status = patch.status;
-      if (patch.pdfUrl !== undefined) payload.pdf_url = patch.pdfUrl ?? null;
-      if (patch.sentAt !== undefined) payload.sent_at = patch.sentAt ?? null;
-
-      const { data, error: updateError } = await supabase
-        .from("simulations")
-        .update(payload)
-        .eq("id", id)
-        .eq("user_id", authUserId)
-        .select("*")
-        .single();
-
-      if (updateError || !data) {
-        setError(
-          isMissingTableError(updateError)
-            ? "A tabela de simulações ainda não foi publicada no Supabase."
-            : updateError?.message ?? "Não foi possível atualizar a simulação.",
-        );
-        return null;
-      }
-
-      setError(null);
-      const simulation = mapSimulation(data as SimulationRow);
-      setSimulations((prev) => prev.map((s) => (s.id === id ? simulation : s)));
-      return simulation;
-    },
-    [authUserId],
-  );
-
-  const removeSimulation = useCallback<Ctx["removeSimulation"]>(
-    async (id) => {
-      if (!authUserId) return false;
-
-      const previous = simulations;
-      setSimulations((prev) => prev.filter((s) => s.id !== id));
-
-      const { error: deleteError } = await supabase
-        .from("simulations")
-        .delete()
-        .eq("id", id)
-        .eq("user_id", authUserId);
-
-      if (deleteError) {
-        setError(
-          isMissingTableError(deleteError)
-            ? "A tabela de simulações ainda não foi publicada no Supabase."
-            : deleteError.message,
-        );
-        setSimulations(previous);
-        return false;
-      }
-
-      setError(null);
-      return true;
-    },
-    [authUserId, simulations],
-  );
-
-  const toggleTask = useCallback<Ctx["toggleTask"]>(async (id) => {
-    const current = tasks.find((t) => t.id === id);
-    if (!current) return;
-
-    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
-
-    const { error: updateError } = await supabase
-      .from("tasks")
-      .update({ done: !current.done, updated_at: new Date().toISOString() })
-      .eq("id", id);
-
-    if (updateError) {
-      setError(updateError.message);
-      setTasks((prev) => prev.map((t) => (t.id === id ? current : t)));
-      return;
-    }
-
-    setError(null);
-  }, [tasks]);
-
-  const addClientActivity = useCallback<Ctx["addClientActivity"]>(
-    (clientId, input) => pushActivity(clientId, input),
-    [pushActivity],
-  );
-
-  const removeClientActivity = useCallback<Ctx["removeClientActivity"]>(
-    async (clientId, activityId) => {
-      const current = clientActivities[clientId] ?? [];
-      if (!current.some((a) => a.id === activityId)) return false;
-
-      const previous = current;
-      setClientActivities((prev) => ({
-        ...prev,
-        [clientId]: (prev[clientId] ?? []).filter((a) => a.id !== activityId),
-      }));
-
-      const { error: deleteError } = await supabase
-        .from("client_activities")
-        .delete()
-        .eq("id", activityId);
-
-      if (deleteError && !isMissingTableError(deleteError)) {
-        setError(deleteError.message);
-        setClientActivities((prev) => ({ ...prev, [clientId]: previous }));
-        return false;
-      }
-      return true;
-    },
-    [clientActivities],
-  );
-
-  const setPipelineFollowUp = useCallback<Ctx["setPipelineFollowUp"]>(
-    async (clientId, followUpAt) => {
-      if (!ownerId) return;
-      const nowIso = new Date().toISOString();
-      const previous = pipelineCards[clientId];
-      // Optimistic update
-      setPipelineCards((prev) => {
-        const card = prev[clientId];
-        if (!card) {
-          return {
-            ...prev,
-            [clientId]: {
-              id: `local-${clientId}`,
-              ownerId,
-              clientId,
-              stage: clients.find((c) => c.id === clientId)?.status ?? "novo",
-              stageUpdatedAt: nowIso,
-              followUpAt: followUpAt ?? undefined,
-              position: 0,
-            },
-          };
-        }
-        return { ...prev, [clientId]: { ...card, followUpAt: followUpAt ?? undefined } };
-      });
-
-      const { data, error: upsertError } = await supabase
-        .from("pipeline_cards")
-        .upsert(
-          {
-            account_id: ownerId,
-            client_id: clientId,
-            follow_up_at: followUpAt,
-          },
-          { onConflict: "client_id" },
-        )
-        .select("*")
-        .single();
-
-      if (upsertError) {
-        if (!isMissingTableError(upsertError)) {
-          setError(upsertError.message);
-        }
-        if (previous) {
-          setPipelineCards((prev) => ({ ...prev, [clientId]: previous }));
-        }
-        return;
-      }
-      if (data) {
-        const card = mapPipelineCard(data as PipelineCardRow);
-        setPipelineCards((prev) => ({ ...prev, [clientId]: card }));
-      }
-    },
-    [ownerId, pipelineCards, clients],
-  );
-
-  const touchPipelineStage = useCallback<Ctx["touchPipelineStage"]>(
-    async (clientId) => {
-      if (!ownerId) return;
-      const nowIso = new Date().toISOString();
-      setPipelineCards((prev) => {
-        const card = prev[clientId];
-        if (!card) return prev;
-        return { ...prev, [clientId]: { ...card, stageUpdatedAt: nowIso } };
-      });
-      const { error: upsertError } = await supabase
-        .from("pipeline_cards")
-        .upsert(
-          {
-            account_id: ownerId,
-            client_id: clientId,
-            stage_updated_at: nowIso,
-          },
-          { onConflict: "client_id" },
-        );
-      if (upsertError && !isMissingTableError(upsertError)) {
-        setError(upsertError.message);
-      }
-    },
-    [ownerId],
-  );
-
-  const recordNbaExecution = useCallback<Ctx["recordNbaExecution"]>(
-    async (input) => {
-      if (!ownerId) return;
-      const { error: insertError } = await supabase.from("nba_executions").insert({
-        account_id: ownerId,
-        client_id: input.clientId,
-        executed_by: authUserId || null,
-        action_type: input.actionType,
-        cta_action: input.ctaAction,
-        priority: input.priority,
-        title: input.title,
-        reason: input.reason ?? null,
-        outcome: input.outcome ?? null,
-      });
-      if (insertError && !isMissingTableError(insertError)) {
-        setError(insertError.message);
-      }
-    },
-    [ownerId, authUserId],
-  );
-
-  const recordClientDocumentAction = useCallback<Ctx["recordClientDocumentAction"]>(
-    async (input) => {
-      if (!ownerId) return null;
-      const nowIso = new Date().toISOString();
-      const { data, error: insertError } = await supabase
-        .from("client_documents")
-        .insert({
-          account_id: ownerId,
-          client_id: input.clientId,
-          uploaded_by: authUserId || null,
-          doc_type: input.docType,
-          status: input.status,
-          name: input.name ?? input.docType,
-          notes: input.notes ?? null,
-          requested_at: input.status === "solicitado" ? nowIso : null,
-          uploaded_at: input.status === "recebido" ? nowIso : null,
-        })
-        .select("*")
-        .single();
-
-      if (insertError) {
-        if (!isMissingTableError(insertError)) {
-          setError(insertError.message);
-        }
-        return null;
-      }
-      if (!data) return null;
-      const row = data as {
-        id: string;
-        client_id: string;
-        doc_type: string;
-        status: ClientDocumentRecord["status"];
-        name: string;
-        storage_path: string | null;
-        size_kb: number;
-        expires_at: string | null;
-        requested_at: string | null;
-        uploaded_at: string | null;
-        notes: string | null;
-        created_at: string;
-      };
-      return {
-        id: row.id,
-        clientId: row.client_id,
-        docType: row.doc_type,
-        status: row.status,
-        name: row.name,
-        storagePath: row.storage_path ?? undefined,
-        sizeKb: row.size_kb,
-        expiresAt: row.expires_at ?? undefined,
-        requestedAt: row.requested_at ?? undefined,
-        uploadedAt: row.uploaded_at ?? undefined,
-        notes: row.notes ?? undefined,
-        createdAt: row.created_at,
-      };
-    },
-    [ownerId, authUserId],
-  );
-
-  const getClientProfile = useCallback<Ctx["getClientProfile"]>(
-    (clientId) => {
-      const client = clients.find((c) => c.id === clientId);
-      if (!client) return null;
-      const base = buildClientProfile(client, tasks, proposals);
-      const migrationSteps = mergeMigrationSteps(base.migrationSteps, migrationStepOverrides[clientId] ?? []);
-      const simulationActivities: ClientActivity[] = simulations
-        .filter((simulation) => simulation.clientId === clientId)
-        .map((simulation) => ({
-          id: `${clientId}-act-simulation-${simulation.id}`,
-          clientId,
-          kind: "simulacao",
-          by: "Você",
-          at: simulation.createdAt,
-          title:
-            simulation.status === "enviada"
-              ? "Simulação enviada"
-              : "Simulação registrada",
-          body: `${formatCurrency(simulation.resultsData.monthlySavings)}/mês de economia estimada`,
-        }));
-      const activities = [
-        ...(clientActivities[clientId] ?? []),
-        ...simulationActivities,
-        ...base.activities,
-      ].sort(
-        (a, b) => +new Date(b.at) - +new Date(a.at),
-      );
-
-      return {
-        ...base,
-        activities,
-        migrationSteps,
-        migration: stepsToMigration(migrationSteps),
-        lastInteractionAt: activities[0]?.at ?? base.lastInteractionAt,
-      };
-    },
-    [clientActivities, clients, migrationStepOverrides, proposals, simulations, tasks],
-  );
+  // ───────────── avisos ─────────────
 
   const markNotificationRead = useCallback(
     async (id: string) => {
-      if (!ownerId) return;
+      if (!accountId) return;
       setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
       await supabase
         .from("platform_announcement_reads")
-        .upsert(
-          { announcement_id: id, account_id: ownerId },
-          { onConflict: "announcement_id,account_id", ignoreDuplicates: true },
-        );
+        .upsert({ announcement_id: id, account_id: accountId }, { onConflict: "announcement_id,account_id" });
     },
-    [ownerId],
+    [accountId],
   );
 
   const markAllNotificationsRead = useCallback(async () => {
-    if (!ownerId) return;
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     await supabase.rpc("mark_all_announcements_read");
-  }, [ownerId]);
+  }, []);
 
-  const metrics = useMemo<DashboardMetrics>(() => {
-    const walletSavings = clients
-      .filter((c) => c.status === "ativo")
-      .reduce((acc, c) => acc + (c.monthlySavings ?? 0), 0);
-    const totalClients = clients.length;
-    const proposalsSent = proposals.filter((p) => p.status !== "rascunho").length;
-    const openTasks = tasks.filter((t) => !t.done).length;
-    return { walletSavings, totalClients, proposalsSent, openTasks };
-  }, [clients, tasks, proposals]);
+  const clearActionError = useCallback(() => setActionError(null), []);
 
   const value = useMemo<Ctx>(
     () => ({
-      ownerId,
-      clients,
-      clientSegments,
+      loading,
+      error,
+      actionError,
+      clearActionError,
+      refresh,
+      units,
+      staff,
+      plans,
+      students,
+      payments,
       tasks,
-      proposals,
-      simulations,
+      activities,
       notifications,
       subscription,
       metrics,
-      loading,
-      error,
-      refresh,
-      addClientSegment,
-      addClient,
-      updateClient,
-      updateClientMigrationStep,
-      addClientMigrationDocument,
-      removeClient,
+      recommendedActions,
+      billingFor,
+      studentById,
+      planById,
+      unitById,
+      staffById,
+      paymentsFor,
+      activitiesFor,
+      updateCompanyProfile,
+      addUnit,
+      updateUnit,
+      removeUnit,
+      addStaff,
+      updateStaff,
+      removeStaff,
+      addPlan,
+      updatePlan,
+      removePlan,
+      addStudent,
+      updateStudent,
+      removeStudent,
+      assignPlan,
+      addPayment,
+      registerPayment,
+      cancelPayment,
+      logCharge,
       addTask,
+      updateTask,
       toggleTask,
-      addProposal,
-      updateProposal,
-      removeProposal,
-      addSimulation,
-      updateSimulation,
-      removeSimulation,
-      addClientActivity,
-      removeClientActivity,
-      getClientProfile,
+      removeTask,
+      addStudentActivity,
+      removeStudentActivity,
       markNotificationRead,
       markAllNotificationsRead,
-      pipelineCards,
-      setPipelineFollowUp,
-      touchPipelineStage,
-      recordNbaExecution,
-      recordClientDocumentAction,
     }),
     [
-      ownerId,
-      clients,
-      clientSegments,
+      loading,
+      error,
+      actionError,
+      clearActionError,
+      refresh,
+      units,
+      staff,
+      plans,
+      students,
+      payments,
       tasks,
-      proposals,
-      simulations,
+      activities,
       notifications,
       subscription,
       metrics,
-      loading,
-      error,
-      refresh,
-      addClientSegment,
-      addClient,
-      updateClient,
-      updateClientMigrationStep,
-      addClientMigrationDocument,
-      removeClient,
+      recommendedActions,
+      billingFor,
+      studentById,
+      planById,
+      unitById,
+      staffById,
+      paymentsFor,
+      activitiesFor,
+      updateCompanyProfile,
+      addUnit,
+      updateUnit,
+      removeUnit,
+      addStaff,
+      updateStaff,
+      removeStaff,
+      addPlan,
+      updatePlan,
+      removePlan,
+      addStudent,
+      updateStudent,
+      removeStudent,
+      assignPlan,
+      addPayment,
+      registerPayment,
+      cancelPayment,
+      logCharge,
       addTask,
+      updateTask,
       toggleTask,
-      addProposal,
-      updateProposal,
-      removeProposal,
-      addSimulation,
-      updateSimulation,
-      removeSimulation,
-      addClientActivity,
-      removeClientActivity,
-      getClientProfile,
+      removeTask,
+      addStudentActivity,
+      removeStudentActivity,
       markNotificationRead,
       markAllNotificationsRead,
-      pipelineCards,
-      setPipelineFollowUp,
-      touchPipelineStage,
-      recordNbaExecution,
-      recordClientDocumentAction,
     ],
   );
 

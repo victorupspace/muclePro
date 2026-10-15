@@ -64,54 +64,35 @@ Deno.serve(async (req) => {
 });
 
 function buildMessage(table: string, record: Record<string, unknown>) {
+  // Lead do formulário da home (hero_form_submissions)
   if (table === "hero_form_submissions") {
     return [
       "Novo lead da landing",
       "",
-      field("Perfil", clientTypeLabel(text(record.client_type))),
       field("Nome", text(record.full_name)),
       field("Telefone", text(record.phone)),
-      field("Email", text(record.email)),
-      field("Regioes", arrayText(record.regions)),
-      field("Rede de parceiros", booleanLabel(record.has_partner_network)),
-      field("Porte", text(record.commercializer_size)),
-      field("Segmento", text(record.segment)),
-      field("Gasto mensal", text(record.monthly_energy_spend)),
+      field("E-mail", text(record.email)),
+      field("Tipo de estabelecimento", businessTypeLabel(text(record.business_type))),
+      field("Unidades", unitsRangeLabel(text(record.units_range))),
+      field("Alunos ativos", studentsRangeLabel(text(record.active_students_range))),
       backofficeLine("/internal-musclepro-admin/leads-landing"),
     ]
       .filter(Boolean)
       .join("\n");
   }
 
+  // Cadastro de estabelecimento pela tela /cadastro (accounts)
   if (table === "accounts") {
     return [
-      "Novo cadastro aguardando aprovacao",
+      "Novo cadastro aguardando aprovação",
       "",
-      field("Tipo", accountKindLabel(text(record.kind))),
-      field("Nome", text(record.full_name)),
+      field("Estabelecimento", text(record.company_name)),
+      field("Tipo", businessTypeLabel(text(record.business_type))),
+      field("Responsável", text(record.full_name)),
       field("Telefone", text(record.phone)),
-      field("Email", text(record.email)),
-      field("Documento", text(record.document)),
-      field("Empresa", text(record.company_name)),
+      field("E-mail", text(record.email)),
+      field(documentLabel(text(record.document_type)), text(record.document)),
       backofficeLine("/internal-musclepro-admin/contas-novas"),
-    ]
-      .filter(Boolean)
-      .join("\n");
-  }
-
-  if (table === "commercializer_leads") {
-    if (text(record.source) === "landing") {
-      return null;
-    }
-
-    return [
-      "Nova comercializadora",
-      "",
-      field("Nome", text(record.full_name)),
-      field("Telefone", text(record.phone)),
-      field("Email", text(record.email)),
-      field("Origem", sourceLabel(text(record.source))),
-      backofficeLine("/internal-musclepro-admin/comercializadoras"),
     ]
       .filter(Boolean)
       .join("\n");
@@ -129,41 +110,41 @@ function text(value: unknown) {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
-function arrayText(value: unknown) {
-  return Array.isArray(value) && value.length > 0
-    ? value.map((item) => String(item)).join(", ")
-    : null;
-}
-
-function booleanLabel(value: unknown) {
-  if (value === true) return "sim";
-  if (value === false) return "nao";
-  return null;
-}
-
-function clientTypeLabel(value: string | null) {
+function businessTypeLabel(value: string | null) {
   const labels: Record<string, string> = {
-    consultor: "Consultor",
-    comercializadora: "Comercializadora",
-    consumidor: "Consumidor final",
+    academia: "Academia de musculação",
+    estudio: "Estúdio (funcional, pilates, yoga)",
+    natacao: "Escola de natação",
+    crossfit: "Box de crossfit",
+    lutas: "Academia de lutas ou jiu-jitsu",
+    outro: "Outro negócio de saúde",
   };
   return value ? labels[value] ?? value : null;
 }
 
-function accountKindLabel(value: string | null) {
+function unitsRangeLabel(value: string | null) {
   const labels: Record<string, string> = {
-    consultor: "Consultor",
-    comercializadora: "Comercializadora",
+    "1": "1 unidade",
+    "2-5": "2 a 5",
+    "6+": "6 ou mais",
   };
   return value ? labels[value] ?? value : null;
 }
 
-function sourceLabel(value: string | null) {
+function studentsRangeLabel(value: string | null) {
   const labels: Record<string, string> = {
-    cadastro: "Cadastro completo",
-    landing: "Landing page",
+    "ate-100": "Até 100",
+    "100-300": "100 a 300",
+    "300-1000": "300 a 1.000",
+    "1000+": "Mais de 1.000",
   };
   return value ? labels[value] ?? value : null;
+}
+
+function documentLabel(value: string | null) {
+  if (value === "cpf") return "CPF";
+  if (value === "cnpj") return "CNPJ";
+  return "Documento";
 }
 
 function backofficeLine(path: string) {

@@ -11,7 +11,7 @@ import { AuthMedia } from "./AuthMedia";
 type MediaVariant = "intro" | "form" | "success" | "login" | "magic";
 
 type AuthShellProps = {
-  step?: 1 | 2 | 3;
+  step?: number;
   totalSteps?: number;
   onBack?: () => void;
   children: React.ReactNode;
@@ -21,7 +21,7 @@ type AuthShellProps = {
 
 export function AuthShell({
   step,
-  totalSteps = 3,
+  totalSteps = 2,
   onBack,
   children,
   mediaVariant = "intro",

@@ -6,7 +6,6 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Bell,
-  Building2,
   CreditCard,
   Inbox,
   LayoutDashboard,
@@ -29,7 +28,6 @@ const NAV = [
   { label: "Leads da landing", href: "/internal-musclepro-admin/leads-landing", icon: Inbox },
   { label: "Contas novas", href: "/internal-musclepro-admin/contas-novas", icon: UserPlus },
   { label: "Contas ativas", href: "/internal-musclepro-admin/contas-ativas", icon: UserCheck },
-  { label: "Comercializadoras", href: "/internal-musclepro-admin/comercializadoras", icon: Building2 },
   { label: "Pagamentos", href: "/internal-musclepro-admin/pagamentos", icon: CreditCard },
   { label: "Notificações", href: "/internal-musclepro-admin/notificacoes", icon: Bell },
   { label: "Configurações", href: "/internal-musclepro-admin/configuracoes", icon: Settings },

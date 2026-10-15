@@ -8,9 +8,8 @@ Cobre a operação administrativa do negócio em quatro frentes: **estrutura**
 **comercial** (planos por valor e frequência, base de alunos) e **controle**
 (visão consolidada, com a inadimplência em destaque).
 
-> O projeto está em transição: a base de código veio de um SaaS anterior
-> (mercado de energia). A home page já reflete o novo escopo; plataforma,
-> backoffice e banco de dados estão sendo refeitos.
+Áreas: home page (marketing), cadastro/aprovação de contas, plataforma do
+estabelecimento (`/plataforma`) e backoffice interno (`/internal-musclepro-admin`).
 
 ## Stack
 
@@ -28,6 +27,12 @@ npm run dev
 
 Abra `http://localhost:3000`.
 
+Banco: o schema vive em `supabase/migrations/` e é aplicado com
+`supabase db query --linked -f supabase/migrations/<arquivo>.sql` (ou `supabase db push`
+se você tiver a senha do banco). Para popular um ambiente de demonstração, crie dois
+usuários no Supabase Auth (um dono do estabelecimento e um admin do backoffice) e rode
+`supabase/seed/demo-academia.sql`.
+
 Variáveis em `.env.local`:
 
 | Variável | Onde pegar |
@@ -44,7 +49,7 @@ src/
   app/
     (marketing)/           Home page
     (auth)/                Login, cadastro, definição de senha
-    plataforma/            Área logada do estabelecimento
+    plataforma/            Área logada: dashboard, alunos, equipe, planos, tarefas, configurações
     internal-musclepro-admin/  Backoffice interno
     api/                   Rotas de API (aprovação de contas, senha)
   components/
@@ -53,10 +58,11 @@ src/
     ui/                    CTA, Logo, SplashScreen, CountUp…
     plataforma/, admin/, auth/
   lib/
-    brand/mark.ts          Geometria do símbolo da marca (logo, splash, favicon, PDF)
+    brand/mark.ts          Geometria do símbolo da marca (logo, splash, favicon)
     supabase/              Clientes Supabase e envio de leads
 supabase/
-  migrations/              Schema do banco (em revisão para o novo escopo)
+  migrations/              Schema do banco (accounts, units, staff, plans, students, payments, tasks…)
+  seed/                    Dados de demonstração
   functions/               Edge functions (notificação via Telegram)
 public/assets/             Vídeos, logos, favicon
 ```

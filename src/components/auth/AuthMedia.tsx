@@ -8,33 +8,33 @@ type Variant = "intro" | "form" | "success" | "login" | "magic";
 const COPY: Record<Variant, { kicker: string; title: string; body: string }> = {
   intro: {
     kicker: "Bem-vindo ao musclePro",
-    title: "Energia inteligente,\ndecisões precisas.",
+    title: "Gestão completa\npara o seu espaço.",
     body:
-      "A plataforma que conecta consultores, comercializadoras e consumidores do mercado livre de energia.",
+      "O sistema que organiza alunos, planos, cobranças e equipe de academias, estúdios, escolas de natação, boxes e academias de lutas.",
   },
   form: {
     kicker: "Quase lá",
-    title: "Vamos conhecer\nseu negócio.",
+    title: "Vamos conhecer\nseu estabelecimento.",
     body:
       "Levamos menos de dois minutos para configurar o essencial. Seus dados são tratados com segurança e nunca são compartilhados.",
   },
   success: {
     kicker: "Recebemos seu cadastro",
-    title: "Bem-vindo ao\necossistema musclePro.",
+    title: "Bem-vindo ao\nmusclePro.",
     body:
-      "Em breve nosso time entra em contato para dar continuidade à sua ativação.",
+      "Em breve nosso time entra em contato para liberar o acesso do seu estabelecimento.",
   },
   login: {
-    kicker: "Bem-vindo de volta",
-    title: "Sua operação,\nem tempo real.",
+    kicker: "Painel do estabelecimento",
+    title: "Alunos, equipe e financeiro,\nsob controle.",
     body:
-      "Acesse sua conta para acompanhar contratos, consumo, cotações e oportunidades em um só lugar.",
+      "Acesse sua conta para acompanhar matrículas, mensalidades, inadimplência e tarefas da equipe em um só lugar.",
   },
   magic: {
     kicker: "Acesso por link",
     title: "Sem senha,\nsem fricção.",
     body:
-      "Enviamos um link de acesso seguro para o seu email. Basta clicar para entrar — sem digitar senha.",
+      "Enviamos um link de acesso seguro para o seu e-mail. Basta clicar para entrar — sem digitar senha.",
   },
 };
 
@@ -74,13 +74,17 @@ export function AuthMedia({ variant = "intro" }: { variant?: Variant }) {
           </motion.div>
         </AnimatePresence>
 
-        <div className="flex items-end justify-between gap-6">
+        {/* Indicador ilustrativo: não reflete dados reais. */}
+        <div className="flex items-end justify-between gap-6" aria-hidden>
           <div className="space-y-1">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40">
-              Indicadores em tempo real
+              Inadimplência hoje
             </p>
             <p className="text-[28px] font-bold tracking-[-0.02em] text-white">
-              R$ 247,80<span className="ml-1.5 text-[14px] font-medium text-white/50">/MWh</span>
+              4,2%<span className="ml-1.5 text-[14px] font-medium text-white/50">dos alunos</span>
+            </p>
+            <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-white/30">
+              exemplo ilustrativo
             </p>
           </div>
           <Sparkline />
@@ -143,7 +147,8 @@ function BackgroundLayer() {
 }
 
 function Sparkline() {
-  const points = [12, 18, 14, 22, 19, 26, 21, 30, 25, 33, 29, 38];
+  // Inadimplência caindo ao longo do tempo (ilustrativo).
+  const points = [38, 33, 35, 29, 30, 25, 26, 21, 22, 18, 16, 12];
   const max = Math.max(...points);
   const min = Math.min(...points);
   const w = 140;

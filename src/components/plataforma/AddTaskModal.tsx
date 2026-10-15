@@ -1,38 +1,47 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DatePickerField } from "./DatePickerField";
+import { Field, inputClass, ModalFooter, selectClass, textareaClass } from "./FormKit";
 import { Modal } from "./Modal";
+import { useToast } from "./Toast";
 import { usePlataformaStore } from "@/lib/plataforma/store";
+import { TASK_PRIORITY_LABEL } from "@/lib/plataforma/format";
 import type { TaskPriority } from "@/lib/plataforma/types";
 
-const PRIORITIES: { value: TaskPriority; label: string }[] = [
-  { value: "baixa", label: "Baixa" },
-  { value: "media", label: "Média" },
-  { value: "alta", label: "Alta" },
-];
+const PRIORITIES = (Object.keys(TASK_PRIORITY_LABEL) as TaskPriority[]).map((value) => ({
+  value,
+  label: TASK_PRIORITY_LABEL[value],
+}));
 
-export function AddTaskModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { addTask, clients } = usePlataformaStore();
+export function AddTaskModal({
+  open,
+  onClose,
+  defaultStudentId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  defaultStudentId?: string;
+}) {
+  const { addTask, students, staff } = usePlataformaStore();
+  const { push } = useToast();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [dueAt, setDueAt] = useState("");
-  const [clientId, setClientId] = useState<string>("");
+  const [studentId, setStudentId] = useState("");
+  const [staffId, setStaffId] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("media");
   const [submitting, setSubmitting] = useState(false);
 
-  function reset() {
+  useEffect(() => {
+    if (!open) return;
     setTitle("");
     setDescription("");
     setDueAt("");
-    setClientId("");
+    setStudentId(defaultStudentId ?? "");
+    setStaffId("");
     setPriority("media");
-  }
-
-  function handleClose() {
-    reset();
-    onClose();
-  }
+  }, [open, defaultStudentId]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -42,38 +51,33 @@ export function AddTaskModal({ open, onClose }: { open: boolean; onClose: () => 
       title: title.trim(),
       description: description.trim() || undefined,
       dueAt: dueAt ? new Date(`${dueAt}T12:00:00`).toISOString() : undefined,
-      clientId: clientId || undefined,
+      studentId: studentId || undefined,
+      staffId: staffId || undefined,
       priority,
     });
     setSubmitting(false);
-    if (task) handleClose();
+    if (task) {
+      push({ tone: "success", title: "Tarefa criada", description: task.title });
+      onClose();
+    }
   }
+
+  const activeStaff = staff.filter((s) => s.active);
 
   return (
     <Modal
       open={open}
-      onClose={handleClose}
+      onClose={onClose}
       title="Nova tarefa"
-      description="Defina o foco do dia. As tarefas ficam visíveis no dashboard e no CRM."
+      description="O que precisa acontecer e até quando. Tarefas abertas aparecem no dashboard."
       footer={
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button
-            type="button"
-            onClick={handleClose}
-            disabled={submitting}
-            className="inline-flex h-11 w-full items-center justify-center rounded-btn border border-ink-200 px-4 text-[13px] font-semibold text-ink-700 transition-colors hover:border-ink-400 hover:bg-ink-50 sm:h-10 sm:w-auto"
-          >
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            form="add-task-form"
-            disabled={submitting}
-            className="inline-flex h-11 w-full items-center justify-center rounded-btn bg-brand px-4 text-[13px] font-semibold text-white transition-colors hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60 sm:h-10 sm:w-auto"
-          >
-            {submitting ? "Criando..." : "Criar tarefa"}
-          </button>
-        </div>
+        <ModalFooter
+          onCancel={onClose}
+          formId="add-task-form"
+          submitting={submitting}
+          submitLabel="Criar tarefa"
+          submittingLabel="Criando..."
+        />
       }
     >
       <form id="add-task-form" onSubmit={handleSubmit} className="space-y-3">
@@ -81,9 +85,10 @@ export function AddTaskModal({ open, onClose }: { open: boolean; onClose: () => 
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Retornar contato com…"
+            placeholder="Ligar para o aluno sobre…"
             required
-            className="h-10 w-full rounded-btn border border-ink-200 bg-white px-3 text-[13px] text-ink-900 placeholder-ink-400 outline-none transition-colors focus:border-ink-400"
+            autoFocus
+            className={inputClass}
           />
         </Field>
 
@@ -92,32 +97,40 @@ export function AddTaskModal({ open, onClose }: { open: boolean; onClose: () => 
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
-            placeholder="Notas, próximos passos, contexto…"
-            className="w-full rounded-btn border border-ink-200 bg-white px-3 py-2.5 text-[13px] leading-[1.5] text-ink-900 placeholder-ink-400 outline-none transition-colors focus:border-ink-400"
+            placeholder="Contexto, próximos passos…"
+            className={textareaClass}
           />
         </Field>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Cliente vinculado">
-            <select
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
-              className="h-10 w-full rounded-btn border border-ink-200 bg-white px-3 text-[13px] font-medium text-ink-900 outline-none transition-colors focus:border-ink-400"
-            >
-              <option value="">Sem cliente</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                  {c.companyName ? ` — ${c.companyName}` : ""}
+          <Field label="Aluno">
+            <select value={studentId} onChange={(e) => setStudentId(e.target.value)} className={selectClass}>
+              <option value="">Sem aluno</option>
+              {students.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.fullName}
                 </option>
               ))}
             </select>
           </Field>
+          <Field label="Responsável">
+            <select value={staffId} onChange={(e) => setStaffId(e.target.value)} className={selectClass}>
+              <option value="">Eu mesmo</option>
+              {activeStaff.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.fullName}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Prioridade">
             <select
               value={priority}
               onChange={(e) => setPriority(e.target.value as TaskPriority)}
-              className="h-10 w-full rounded-btn border border-ink-200 bg-white px-3 text-[13px] font-medium text-ink-900 outline-none transition-colors focus:border-ink-400"
+              className={selectClass}
             >
               {PRIORITIES.map((p) => (
                 <option key={p.value} value={p.value}>
@@ -126,22 +139,9 @@ export function AddTaskModal({ open, onClose }: { open: boolean; onClose: () => 
               ))}
             </select>
           </Field>
+          <DatePickerField label="Prazo" value={dueAt} onChange={setDueAt} />
         </div>
-
-        <DatePickerField label="Vencimento" value={dueAt} onChange={setDueAt} />
       </form>
     </Modal>
-  );
-}
-
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500">
-        {label}
-        {required && <span className="ml-1 text-brand">*</span>}
-      </span>
-      {children}
-    </label>
   );
 }

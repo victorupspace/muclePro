@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Cadastro — musclePro",
-  description: "Crie sua conta no musclePro e acesse a plataforma do mercado livre de energia.",
+  title: "Acesso — musclePro",
+  description:
+    "Crie a conta do seu estabelecimento ou acesse o musclePro, o sistema de gestão para academias, estúdios, escolas de natação, boxes e academias de lutas.",
   robots: { index: false, follow: false },
 };
 

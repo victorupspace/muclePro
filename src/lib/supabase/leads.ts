@@ -1,7 +1,5 @@
 import { supabase } from "./client";
 
-export type ClientType = "consultor" | "comercializadora" | "consumidor";
-
 // Tipo de estabelecimento informado no formulário da home.
 export type BusinessType = "academia" | "estudio" | "natacao" | "crossfit" | "lutas" | "outro";
 
@@ -15,28 +13,17 @@ export type HeroFormPayload = {
   activeStudentsRange: string;
 };
 
-export type ConsultorRegistrationPayload = {
+export type AccountRegistrationPayload = {
+  // responsável pela conta
   fullName: string;
   phone: string;
   email: string;
-  documentType: string;
+  documentType: "cnpj" | "cpf";
   document: string;
-  companyName?: string | null;
+  // estabelecimento
+  companyName: string;
+  businessType: BusinessType;
   address?: string | null;
-};
-
-export type ComercializadoraRegistrationPayload = {
-  fullName: string;
-  phone: string;
-  email: string;
-};
-
-export type ConsumidorRegistrationPayload = {
-  fullName: string;
-  phone: string;
-  email: string;
-  segment?: string | null;
-  monthlyEnergySpend?: string | null;
 };
 
 // Lead da home. A tabela hero_form_submissions precisa ser recriada no banco
@@ -54,69 +41,31 @@ export async function createHeroFormSubmission(payload: HeroFormPayload) {
   if (error) throw error;
 }
 
-export async function createConsultorRegistration(payload: ConsultorRegistrationPayload) {
-  const { error: legacyError } = await supabase.from("consultor_registrations").insert({
-    full_name: payload.fullName,
-    phone: payload.phone,
-    email: payload.email,
-    document_type: payload.documentType,
-    document: payload.document,
-    company_name: payload.companyName,
-    address: payload.address,
-  });
-
-  if (legacyError) throw legacyError;
-
+// Cadastro de um estabelecimento (tela /cadastro). A conta nasce com
+// status "nova" e é aprovada manualmente no backoffice.
+export async function createAccountRegistration(payload: AccountRegistrationPayload) {
   const { error } = await supabase.from("accounts").insert({
-    kind: "consultor",
     full_name: payload.fullName,
     phone: payload.phone,
     email: payload.email,
     document_type: payload.documentType,
     document: payload.document,
     company_name: payload.companyName,
-    address: payload.address,
+    business_type: payload.businessType,
+    address: payload.address ?? null,
     source: "cadastro",
-    metadata: {
-      origin_table: "consultor_registrations",
-    },
   });
 
   if (error) throw error;
 }
 
-export async function createComercializadoraRegistration(
-  payload: ComercializadoraRegistrationPayload,
-) {
-  const { error: legacyError } = await supabase.from("comercializadora_registrations").insert({
-    full_name: payload.fullName,
-    phone: payload.phone,
-    email: payload.email,
-  });
-
-  if (legacyError) throw legacyError;
-
-  const { error } = await supabase.from("commercializer_leads").insert({
-    full_name: payload.fullName,
-    phone: payload.phone,
-    email: payload.email,
-    source: "cadastro",
-    metadata: {
-      origin_table: "comercializadora_registrations",
-    },
-  });
-
-  if (error) throw error;
-}
-
-export async function createConsumidorRegistration(payload: ConsumidorRegistrationPayload) {
-  const { error } = await supabase.from("consumidor_registrations").insert({
-    full_name: payload.fullName,
-    phone: payload.phone,
-    email: payload.email,
-    segment: payload.segment,
-    monthly_energy_spend: payload.monthlyEnergySpend,
-  });
-
-  if (error) throw error;
+// Violação de unicidade (Postgres 23505). Em accounts só existe o índice
+// único em lower(email), então equivale a "e-mail já cadastrado".
+export function isDuplicateEmailError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "23505"
+  );
 }

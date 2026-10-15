@@ -5,7 +5,7 @@ import {
 } from "@/lib/admin/format";
 import type {
   AccountStatus,
-  ComercializadoraStatus,
+  LeadStatus,
   PaymentStatus,
 } from "@/lib/admin/types";
 
@@ -23,14 +23,14 @@ const PAYMENT_TONE: Record<PaymentStatus, string> = {
   nao_iniciado: "bg-ink-50 text-ink-500 ring-1 ring-inset ring-ink-200",
 };
 
-const LEAD_TONE: Record<ComercializadoraStatus, string> = {
+const LEAD_TONE: Record<LeadStatus, string> = {
   aguardando: "bg-brand/10 text-brand ring-1 ring-inset ring-brand/30",
   em_contato: "bg-warning-50 text-warning-700 ring-1 ring-inset ring-warning-200",
   convertida: "bg-success-50 text-success-700 ring-1 ring-inset ring-success-200",
   perdida: "bg-ink-100 text-ink-500 ring-1 ring-inset ring-ink-200",
 };
 
-const ACCOUNT_LABEL: Record<AccountStatus, string> = { nova: "Nova", criada: "Criada" };
+const ACCOUNT_LABEL: Record<AccountStatus, string> = { nova: "Nova", criada: "Aprovada" };
 
 const baseClasses =
   "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em]";
@@ -43,7 +43,7 @@ export function PaymentStatusBadge({ status }: { status: PaymentStatus }) {
   return <span className={cn(baseClasses, PAYMENT_TONE[status])}>{PAYMENT_LABEL[status]}</span>;
 }
 
-export function LeadStatusBadge({ status }: { status: ComercializadoraStatus }) {
+export function LeadStatusBadge({ status }: { status: LeadStatus }) {
   return <span className={cn(baseClasses, LEAD_TONE[status])}>{LEAD_STATUS_LABEL[status]}</span>;
 }
 

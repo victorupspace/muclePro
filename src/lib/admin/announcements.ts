@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 
 export type AnnouncementKind = "sistema" | "lead" | "tarefa" | "pagamento";
-export type AnnouncementAudience = "all" | "consultor" | "comercializadora";
 
+// Todo anúncio é entregue a todos os estabelecimentos (audience = 'all' no banco).
 export type Announcement = {
   id: string;
   createdAt: string;
@@ -15,7 +15,6 @@ export type Announcement = {
   title: string;
   body: string;
   href: string | null;
-  audience: AnnouncementAudience;
   publishedAt: string | null;
   expiresAt: string | null;
   readsCount: number;
@@ -26,7 +25,6 @@ export type AnnouncementInput = {
   title: string;
   body: string;
   href: string | null;
-  audience: AnnouncementAudience;
   expiresAt: string | null;
   publishNow: boolean;
 };
@@ -40,7 +38,6 @@ type Row = {
   title: string;
   body: string;
   href: string | null;
-  audience: AnnouncementAudience;
   published_at: string | null;
   expires_at: string | null;
 };
@@ -55,7 +52,6 @@ function mapRow(row: Row, readsCount: number): Announcement {
     title: row.title,
     body: row.body,
     href: row.href,
-    audience: row.audience,
     publishedAt: row.published_at,
     expiresAt: row.expires_at,
     readsCount,
@@ -127,7 +123,7 @@ export function useAdminAnnouncements() {
         title: input.title.trim(),
         body: input.body.trim(),
         href: input.href?.trim() || null,
-        audience: input.audience,
+        audience: "all",
         expires_at: input.expiresAt,
         published_at: input.publishNow ? new Date().toISOString() : null,
         created_by: userData.user?.id ?? null,

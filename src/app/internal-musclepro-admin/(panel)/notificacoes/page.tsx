@@ -27,7 +27,6 @@ import {
   announcementStatus,
   useAdminAnnouncements,
   type Announcement,
-  type AnnouncementAudience,
   type AnnouncementInput,
   type AnnouncementKind,
 } from "@/lib/admin/announcements";
@@ -37,12 +36,6 @@ const KIND_META: Record<AnnouncementKind, { label: string; icon: LucideIcon; ton
   lead: { label: "Lead", icon: Users, tone: "bg-info-50 text-info-700 ring-info-200" },
   tarefa: { label: "Tarefa", icon: ListTodo, tone: "bg-warning-50 text-warning-700 ring-warning-200" },
   pagamento: { label: "Pagamento", icon: CreditCard, tone: "bg-success-50 text-success-700 ring-success-200" },
-};
-
-const AUDIENCE_LABEL: Record<AnnouncementAudience, string> = {
-  all: "Todos os perfis",
-  consultor: "Apenas consultores",
-  comercializadora: "Apenas comercializadoras",
 };
 
 const STATUS_TONE: Record<"rascunho" | "publicado" | "expirado", { wrap: string; dot: string; label: string }> = {
@@ -111,7 +104,6 @@ export default function NotificacoesPage() {
         title: input.title.trim(),
         body: input.body.trim(),
         href: input.href?.trim() || null,
-        audience: input.audience,
         expires_at: input.expiresAt,
         published_at: input.publishNow ? editing.publishedAt ?? new Date().toISOString() : null,
       });
@@ -123,7 +115,7 @@ export default function NotificacoesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Notificações"
-        description="Emita anúncios que aparecem para os usuários da plataforma. Cada anúncio é entregue uma única vez por destinatário e o estado de leitura fica registrado."
+        description="Emita anúncios que aparecem para todos os estabelecimentos na plataforma. Cada anúncio é entregue uma única vez por conta e o estado de leitura fica registrado."
         actions={
           <button
             type="button"
@@ -157,7 +149,7 @@ export default function NotificacoesPage() {
         <EmptyState
           icon={<Bell className="h-5 w-5" strokeWidth={2.2} />}
           title="Nenhuma notificação por aqui"
-          description="Crie seu primeiro anúncio para que apareça no sino dos usuários da plataforma."
+          description="Crie seu primeiro anúncio para que apareça no sino dos estabelecimentos na plataforma."
         />
       ) : (
         <ul className="space-y-2">
@@ -194,10 +186,6 @@ export default function NotificacoesPage() {
                       </span>
                       <span className="inline-flex items-center gap-1 rounded-full bg-ink-100 px-2 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-ink-700 ring-1 ring-inset ring-ink-200">
                         {KIND_META[a.kind].label}
-                      </span>
-                      <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-ink-50 px-2 py-0.5 text-[10.5px] font-semibold text-ink-600 ring-1 ring-inset ring-ink-200">
-                        <Users className="h-2.5 w-2.5 shrink-0" strokeWidth={2.4} />
-                        <span className="truncate">{AUDIENCE_LABEL[a.audience]}</span>
                       </span>
                     </div>
 

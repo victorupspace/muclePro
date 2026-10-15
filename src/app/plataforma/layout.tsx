@@ -1,14 +1,17 @@
 import type { ReactNode } from "react";
 import { PlataformaShell } from "@/components/plataforma/PlataformaShell";
-import { ConsultorSessionProvider } from "@/lib/plataforma/session";
+import { ToastProvider } from "@/components/plataforma/Toast";
+import { AccountSessionProvider } from "@/lib/plataforma/session";
 import { PlataformaStoreProvider } from "@/lib/plataforma/store";
 
 export default function PlataformaLayout({ children }: { children: ReactNode }) {
   return (
-    <ConsultorSessionProvider>
+    <AccountSessionProvider>
       <PlataformaStoreProvider>
-        <PlataformaShell>{children}</PlataformaShell>
+        <ToastProvider>
+          <PlataformaShell>{children}</PlataformaShell>
+        </ToastProvider>
       </PlataformaStoreProvider>
-    </ConsultorSessionProvider>
+    </AccountSessionProvider>
   );
 }

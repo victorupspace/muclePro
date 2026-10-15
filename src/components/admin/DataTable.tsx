@@ -44,7 +44,7 @@ export function DataTable<T>({ rows, columns, rowKey, actions, emptyState, mobil
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={rowKey(row)} className="border-b border-ink-100 last:border-0 hover:bg-ink-50/40">
+              <tr key={rowKey(row)} data-row className="border-b border-ink-100 last:border-0 hover:bg-ink-50/40">
                 {columns.map((c) => (
                   <td key={c.key} className={cn("px-4 py-3 align-middle text-ink-900", c.className)}>
                     {c.render(row)}
@@ -68,7 +68,7 @@ export function DataTable<T>({ rows, columns, rowKey, actions, emptyState, mobil
           const primary = visible.find((c) => c.mobilePrimary);
           const rest = primary ? visible.filter((c) => c !== primary) : visible;
           return (
-            <div key={rowKey(row)} className="rounded-card border border-ink-200 bg-white p-3.5">
+            <div key={rowKey(row)} data-row className="rounded-card border border-ink-200 bg-white p-3.5">
               {primary && (
                 <div className="mb-2.5 border-b border-ink-100 pb-2.5">
                   {primary.render(row)}
@@ -130,7 +130,7 @@ const TABLE_BUTTON_STYLES: Record<Tone, string> = {
 };
 
 const TABLE_BUTTON_BASE =
-  "inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-btn border px-2.5 text-[11.5px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 md:h-8 md:w-auto";
+  "inline-flex h-9 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-btn border px-2.5 text-[11.5px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 md:h-8 md:w-auto";
 
 type TableButtonProps =
   | (React.ButtonHTMLAttributes<HTMLButtonElement> & { tone?: Tone; href?: undefined })

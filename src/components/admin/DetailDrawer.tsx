@@ -6,10 +6,12 @@ import { KeyRound, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { EASE } from "@/lib/motion";
 import {
-  ACCOUNT_KIND_LABEL,
+  businessTypeLabel,
   formatCurrency,
   formatDate,
   formatDateTime,
+  studentsRangeLabel,
+  unitsRangeLabel,
 } from "@/lib/admin/format";
 import type { Account } from "@/lib/admin/types";
 import { AccountStatusBadge, ActiveBadge, PaymentStatusBadge } from "./StatusBadge";
@@ -51,12 +53,14 @@ export function AccountDetailDrawer({ account, open, onClose, onGeneratePassword
             <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-ink-200 bg-white px-4 py-4 sm:px-6 sm:py-5">
               <div className="min-w-0">
                 <p className="text-[10.5px] font-bold uppercase tracking-[0.14em] text-brand">
-                  {ACCOUNT_KIND_LABEL[account.kind]}
+                  {account.businessType ? businessTypeLabel(account.businessType) : "Estabelecimento"}
                 </p>
                 <h2 className="mt-1 truncate text-[17px] font-bold leading-[1.2] tracking-[-0.01em] text-ink-900 sm:text-[18px]">
-                  {account.fullName}
+                  {account.companyName ?? account.fullName}
                 </h2>
-                <p className="mt-0.5 truncate text-[12.5px] text-ink-500">{account.email}</p>
+                <p className="mt-0.5 truncate text-[12.5px] text-ink-500">
+                  {account.companyName ? `${account.fullName} · ${account.email}` : account.email}
+                </p>
               </div>
               <button
                 type="button"
@@ -88,17 +92,25 @@ export function AccountDetailDrawer({ account, open, onClose, onGeneratePassword
                 </div>
               )}
 
-              <Section title="Contato">
+              <Section title="Responsável">
+                <Row label="Nome" value={account.fullName} />
                 <Row label="Telefone" value={account.phone} />
-                <Row label="Email" value={account.email} />
+                <Row label="E-mail" value={account.email} />
               </Section>
 
-              <Section title="Documentação">
+              <Section title="Estabelecimento">
+                <Row label="Nome" value={account.companyName ?? "—"} />
+                <Row label="Tipo" value={businessTypeLabel(account.businessType)} />
                 <Row
                   label={account.documentKind === "cnpj" ? "CNPJ" : "CPF"}
                   value={account.document}
                 />
-                {account.companyName && <Row label="Razão social" value={account.companyName} />}
+                {account.unitsRange && <Row label="Unidades" value={unitsRangeLabel(account.unitsRange)} />}
+                {account.activeStudentsRange && (
+                  <Row label="Alunos ativos" value={studentsRangeLabel(account.activeStudentsRange)} />
+                )}
+                {account.contactPhone && <Row label="Telefone de contato" value={account.contactPhone} />}
+                {account.contactEmail && <Row label="E-mail de contato" value={account.contactEmail} />}
                 {account.address && <Row label="Endereço" value={account.address} multiline />}
               </Section>
 

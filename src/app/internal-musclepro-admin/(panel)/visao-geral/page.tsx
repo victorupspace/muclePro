@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Building2,
   CheckCircle2,
   CreditCard,
   Inbox,
@@ -17,17 +16,16 @@ import { useAdminStore } from "@/lib/admin/store";
 import { formatRelative } from "@/lib/admin/format";
 
 export default function VisaoGeralPage() {
-  const { accounts, leads, landingLeads } = useAdminStore();
+  const { accounts, landingLeads } = useAdminStore();
 
   const novas = accounts.filter((a) => a.status === "nova");
-  const criadas = accounts.filter((a) => a.status === "criada");
+  const aprovadas = accounts.filter((a) => a.status === "criada");
   const ativas = accounts.filter((a) => a.active);
   const inativas = accounts.filter((a) => !a.active);
   const pagamentosEmDia = accounts.filter((a) => a.payment.status === "em_dia").length;
   const pagamentosPendentes = accounts.filter((a) =>
     ["pendente", "atrasado"].includes(a.payment.status),
   ).length;
-  const leadsAguardando = leads.filter((l) => l.status === "aguardando").length;
   const landingAguardando = landingLeads.filter((l) => l.status === "aguardando").length;
 
   const recentEvents = accounts
@@ -39,7 +37,7 @@ export default function VisaoGeralPage() {
     <div className="space-y-7">
       <PageHeader
         title="Visão geral"
-        description="Resumo operacional do musclePro. Os números abaixo refletem o estado atual dos cadastros, contas ativas e pagamentos."
+        description="Resumo operacional do musclePro. Os números abaixo refletem o estado atual dos cadastros, contas aprovadas e pagamentos."
       />
 
       <section>
@@ -50,7 +48,7 @@ export default function VisaoGeralPage() {
           <StatCard
             label="Total de cadastros"
             value={accounts.length}
-            hint="Consultores cadastrados na plataforma"
+            hint="Estabelecimentos cadastrados"
             icon={<Sparkles className="h-3.5 w-3.5" strokeWidth={2.2} />}
           />
           <StatCard
@@ -62,8 +60,8 @@ export default function VisaoGeralPage() {
             href="/internal-musclepro-admin/contas-novas"
           />
           <StatCard
-            label="Contas ativas"
-            value={criadas.length}
+            label="Contas aprovadas"
+            value={aprovadas.length}
             hint="Aprovadas pelo time"
             icon={<UserCheck className="h-3.5 w-3.5" strokeWidth={2.2} />}
             href="/internal-musclepro-admin/contas-ativas"
@@ -71,7 +69,7 @@ export default function VisaoGeralPage() {
           <StatCard
             label="Leads da landing"
             value={landingAguardando}
-            hint="Diagnósticos aguardando contato"
+            hint="Leads aguardando contato"
             highlight={landingAguardando > 0}
             icon={<Inbox className="h-3.5 w-3.5" strokeWidth={2.2} />}
             href="/internal-musclepro-admin/leads-landing"
@@ -87,7 +85,7 @@ export default function VisaoGeralPage() {
           <StatCard
             label="Contas ativas"
             value={ativas.length}
-            hint="Acessando a plataforma"
+            hint="Com acesso à plataforma liberado"
             icon={<CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2.2} />}
           />
           <StatCard
@@ -110,14 +108,6 @@ export default function VisaoGeralPage() {
             icon={<TimerReset className="h-3.5 w-3.5" strokeWidth={2.2} />}
             href="/internal-musclepro-admin/pagamentos"
           />
-          <StatCard
-            label="Comercializadoras"
-            value={leadsAguardando}
-            hint="Solicitações consultivas"
-            highlight={leadsAguardando > 0}
-            icon={<Building2 className="h-3.5 w-3.5" strokeWidth={2.2} />}
-            href="/internal-musclepro-admin/comercializadoras"
-          />
         </div>
       </section>
 
@@ -138,7 +128,7 @@ export default function VisaoGeralPage() {
                   <span className="shrink-0 text-[11px] text-ink-400">{formatRelative(evt.at)}</span>
                 </div>
                 <p className="truncate text-[11.5px] text-ink-500">
-                  {evt.account.fullName} · {evt.account.email}
+                  {evt.account.companyName ?? evt.account.fullName} · {evt.account.email}
                 </p>
               </div>
             </li>

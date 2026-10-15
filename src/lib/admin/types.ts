@@ -1,4 +1,6 @@
-export type AccountKind = "consultor" | "comercializadora";
+import type { BusinessType } from "@/lib/supabase/leads";
+
+export type { BusinessType };
 
 export type DocumentKind = "cnpj" | "cpf";
 
@@ -12,15 +14,8 @@ export type PaymentStatus =
   | "cancelado"
   | "nao_iniciado";
 
-export type ComercializadoraStatus =
-  | "aguardando"
-  | "em_contato"
-  | "convertida"
-  | "perdida";
-
-export type LandingLeadStatus = ComercializadoraStatus;
-
-export type LandingLeadKind = "consultor" | "comercializadora" | "consumidor";
+// Status comercial de um lead da landing (hero_form_submissions).
+export type LeadStatus = "aguardando" | "em_contato" | "convertida" | "perdida";
 
 export type HistoryEvent = {
   id: string;
@@ -31,14 +26,21 @@ export type HistoryEvent = {
 
 export type Account = {
   id: string;
-  kind: AccountKind;
+  // responsável pela conta
   fullName: string;
   email: string;
   phone: string;
   documentKind: DocumentKind;
   document: string;
+  // estabelecimento
   companyName?: string;
+  businessType?: BusinessType;
   address?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  unitsRange?: string;
+  activeStudentsRange?: string;
+  // ciclo de vida
   createdAt: string;
   approvedAt?: string;
   status: AccountStatus;
@@ -53,29 +55,16 @@ export type Account = {
   history: HistoryEvent[];
 };
 
-export type ComercializadoraLead = {
-  id: string;
-  fullName: string;
-  email: string;
-  phone: string;
-  requestedAt: string;
-  status: ComercializadoraStatus;
-  history: HistoryEvent[];
-};
-
 export type LandingLead = {
   id: string;
   fullName: string;
   email: string;
   phone: string;
-  clientType: LandingLeadKind;
-  regions: string[];
-  hasPartnerNetwork?: boolean | null;
-  commercializerSize?: string | null;
-  segment?: string | null;
-  monthlyEnergySpend?: string | null;
+  businessType: BusinessType;
+  unitsRange?: string;
+  activeStudentsRange?: string;
   requestedAt: string;
-  status: LandingLeadStatus;
+  status: LeadStatus;
   handledAt?: string;
   history: HistoryEvent[];
 };

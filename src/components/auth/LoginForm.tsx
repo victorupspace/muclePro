@@ -69,7 +69,7 @@ export function LoginForm({ onSubmit, onRequestMagicLink, globalError, lockedUnt
           Acesse sua conta
         </h1>
         <p className="mt-3 text-[14px] leading-[1.6] text-ink-500">
-          Entre com suas credenciais para continuar acompanhando sua operação no mercado livre.
+          Entre com suas credenciais para acompanhar alunos, cobranças e equipe do seu estabelecimento.
         </p>
       </div>
 

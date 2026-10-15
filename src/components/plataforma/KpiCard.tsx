@@ -12,6 +12,8 @@ type Props = {
   hint?: string;
   href?: string;
   highlight?: boolean;
+  // "danger" realça o cartão em vermelho (ex.: inadimplência).
+  tone?: "danger";
   icon?: React.ReactNode;
   action?: {
     label: string;
@@ -21,7 +23,8 @@ type Props = {
   delay?: number;
 };
 
-export function KpiCard({ label, value, hint, href, highlight, icon, action, delay = 0 }: Props) {
+export function KpiCard({ label, value, hint, href, highlight, tone, icon, action, delay = 0 }: Props) {
+  const danger = tone === "danger";
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -34,7 +37,11 @@ export function KpiCard({ label, value, hint, href, highlight, icon, action, del
           href
             ? "hover:-translate-y-0.5 hover:border-ink-400 hover:shadow-[0_18px_40px_-22px_rgba(17,17,17,0.25)]"
             : "",
-          highlight ? "border-brand/40 ring-1 ring-inset ring-brand/15" : "border-ink-200",
+          danger
+            ? "border-danger-300 ring-1 ring-inset ring-danger-200"
+            : highlight
+              ? "border-brand/40 ring-1 ring-inset ring-brand/15"
+              : "border-ink-200",
         )}
       >
         {href && (
@@ -56,7 +63,11 @@ export function KpiCard({ label, value, hint, href, highlight, icon, action, del
             <span
               className={cn(
                 "inline-flex h-7 w-7 items-center justify-center rounded-full",
-                highlight ? "bg-brand/10 text-brand" : "bg-ink-100 text-ink-600",
+                danger
+                  ? "bg-danger-50 text-danger-600"
+                  : highlight
+                    ? "bg-brand/10 text-brand"
+                    : "bg-ink-100 text-ink-600",
               )}
             >
               {icon}
@@ -68,7 +79,7 @@ export function KpiCard({ label, value, hint, href, highlight, icon, action, del
           className={cn(
             "relative z-20 mt-3 text-[24px] font-bold leading-[1] tracking-[-0.025em] md:text-[28px]",
             href ? "pointer-events-none" : "",
-            highlight ? "text-brand" : "text-ink-900",
+            danger ? "text-danger-700" : highlight ? "text-brand" : "text-ink-900",
           )}
         >
           {value}

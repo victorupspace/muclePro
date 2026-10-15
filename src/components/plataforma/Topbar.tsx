@@ -1,7 +1,7 @@
 "use client";
 
 import { LogOut, Menu } from "lucide-react";
-import { ClientSearch } from "./ClientSearch";
+import { StudentSearch } from "./StudentSearch";
 import { NotificationsMenu } from "./NotificationsMenu";
 import { SubscriptionBadge } from "./SubscriptionBadge";
 import { usePlataformaStore } from "@/lib/plataforma/store";
@@ -27,7 +27,7 @@ export function Topbar({ onOpenMobileNav, onSignOut }: Props) {
         </button>
 
         <div className="min-w-0 flex-1">
-          <ClientSearch className="w-full max-w-[460px]" />
+          <StudentSearch className="w-full max-w-[460px]" />
         </div>
 
         <div className="hidden sm:block">

@@ -1,12 +1,50 @@
-export type ConsultorProfile = {
+// Modelo de domínio da plataforma: um estabelecimento (conta) com filiais,
+// equipe, planos, alunos, cobranças e tarefas. Espelha o schema em
+// supabase/migrations/20261014000000_musclepro_schema.sql.
+
+export type BusinessType = "academia" | "estudio" | "natacao" | "crossfit" | "lutas" | "outro";
+
+export type DocumentType = "cnpj" | "cpf";
+
+// O que o usuário logado pode fazer. O dono da conta tem tudo; funcionários
+// com login herdam as alçadas do próprio cadastro em `staff`.
+export type Permissions = {
+  canRegisterStudents: boolean;
+  canSendPaymentLinks: boolean;
+  canCreateWorkouts: boolean;
+  canManageTeam: boolean;
+  canManageCompany: boolean;
+};
+
+export type AccountProfile = {
   id: string;
   authUserId: string;
+  isOwner: boolean;
+  staffId?: string;
+  permissions: Permissions;
   fullName: string;
   email: string;
+  phone?: string;
   companyName?: string;
+  businessType?: BusinessType;
+  documentType?: DocumentType;
+  document?: string;
+  address?: string;
+  contactPhone?: string;
+  contactEmail?: string;
   paymentStatus?: string;
   paymentPlan?: string;
   paymentNextDueAt?: string;
+};
+
+export type CompanyProfilePatch = {
+  companyName: string;
+  businessType: BusinessType;
+  documentType: DocumentType;
+  document: string;
+  address?: string;
+  contactPhone?: string;
+  contactEmail?: string;
 };
 
 export type SubscriptionStatus = "ativo" | "trial" | "expirado";
@@ -18,245 +56,166 @@ export type Subscription = {
   nextDueAt?: string;
 };
 
-export type ClientStatus =
-  | "novo"
-  | "qualificando"
-  | "proposta_enviada"
-  | "em_negociacao"
-  | "assinado"
-  | "migrando"
-  | "ativo"
-  | "inativo";
+// ───────────────────────────── filiais ─────────────────────────────────────
 
-export type Client = {
+export type Unit = {
   id: string;
-  ownerId: string;
+  accountId: string;
   name: string;
-  companyName?: string;
-  email: string;
-  phone: string;
-  locationState?: string;
-  locationCity?: string;
-  distributor?: string;
-  segment?: string;
-  monthlySavings?: number;
-  status: ClientStatus;
+  address?: string;
+  city?: string;
+  state?: string;
+  phone?: string;
+  isMain: boolean;
+  active: boolean;
   createdAt: string;
 };
 
-export type ClientLifecycleStatus = ClientStatus;
+// ───────────────────────────── equipe ──────────────────────────────────────
 
-export type ClientProfileTag =
-  | "varejista"
-  | "atacadista"
-  | "industria"
-  | "servicos"
-  | "logistica"
-  | "outros";
+export type StaffRole = "gestao" | "recepcao" | "contabilidade" | "personal" | "outro";
 
-export type Submercado = "SE/CO" | "S" | "NE" | "N";
-
-export type Tensao = "BT" | "MT" | "AT";
-
-export type ClientUnit = {
+export type Staff = {
   id: string;
-  clientId: string;
-  ucCode: string;
-  distribuidora: string;
-  locationState?: string;
-  locationCity?: string;
-  submercado: Submercado;
-  tensao: Tensao;
-  contractedDemandKw?: number;
-  tariff?: string;
-  averageConsumptionKwh?: number;
-  smfReady: boolean;
-  contractEndAt?: string;
-};
-
-export type ClientDocumentKind =
-  | "contrato_social"
-  | "fatura"
-  | "procuracao"
-  | "denuncia_distribuidora"
-  | "ccee"
-  | "outros";
-
-export type ClientDocument = {
-  id: string;
-  clientId: string;
-  name: string;
-  kind: ClientDocumentKind;
-  uploadedAt: string;
-  expiresAt?: string;
-  sizeKb: number;
-};
-
-export type ClientActivityKind =
-  | "criacao"
-  | "status"
-  | "segmento"
-  | "nota"
-  | "simulacao"
-  | "proposta"
-  | "documento"
-  | "migracao"
-  | "tarefa"
-  | "contato"
-  | "nba";
-
-export type ClientActivity = {
-  id: string;
-  clientId: string;
-  kind: ClientActivityKind;
-  by: string;
-  at: string;
-  title: string;
-  body?: string;
-};
-
-export type ClientMigrationStage =
-  | "diagnostico"
-  | "simulacao"
-  | "proposta_enviada"
-  | "proposta_aceita"
-  | "denuncia"
-  | "contratos"
-  | "smf"
-  | "ccee"
-  | "ativo_ml";
-
-export type ClientMigrationStatus = "pendente" | "em_andamento" | "concluido";
-
-export type ClientMigrationDocument = {
-  id: string;
-  name: string;
-  sizeKb: number;
-  uploadedAt: string;
-};
-
-export type ClientMigrationStep = {
-  id: string;
-  clientId: string;
-  stepName: ClientMigrationStage;
-  status: ClientMigrationStatus;
+  accountId: string;
+  unitId?: string;
+  authUserId?: string;
+  fullName: string;
+  cpf?: string;
+  email?: string;
+  phone?: string;
+  role: StaffRole;
+  roleLabel?: string;
+  startedAt?: string;
+  endedAt?: string;
+  canRegisterStudents: boolean;
+  canSendPaymentLinks: boolean;
+  canCreateWorkouts: boolean;
+  active: boolean;
   notes?: string;
-  completedAt?: string;
-  updatedAt: string;
-  documents: ClientMigrationDocument[];
+  createdAt: string;
 };
 
-export type ClientProfile = {
+// ───────────────────────────── planos ──────────────────────────────────────
+
+export type PlanFrequency = "mensal" | "bimestral" | "trimestral" | "semestral" | "anual";
+
+export type Plan = {
   id: string;
-  legalName: string;
-  tradeName?: string;
-  document?: string;
-  profileTag?: ClientProfileTag;
-  lifecycle: ClientLifecycleStatus;
-  economicGroup?: string;
-  units: ClientUnit[];
-  documents: ClientDocument[];
-  activities: ClientActivity[];
-  migration: Record<ClientMigrationStage, ClientMigrationStatus>;
-  migrationSteps: ClientMigrationStep[];
-  lastInteractionAt?: string;
-  averageConsumptionKwh?: number;
-  monthlySavings?: number;
+  accountId: string;
+  name: string;
+  amount: number;
+  frequency: PlanFrequency;
+  description?: string;
+  active: boolean;
+  createdAt: string;
 };
+
+// ───────────────────────────── alunos ──────────────────────────────────────
+
+export type StudentStatus = "ativo" | "inativo";
+
+export type Student = {
+  id: string;
+  accountId: string;
+  unitId?: string;
+  planId?: string;
+  fullName: string;
+  cpf?: string;
+  birthDate?: string;
+  whatsapp?: string;
+  email?: string;
+  medicalNotes?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  status: StudentStatus;
+  planStartedAt?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+// ───────────────────────────── cobranças ───────────────────────────────────
+
+export type PaymentStatus = "pendente" | "pago" | "cancelado";
+
+export type PaymentMethod = "pix" | "cartao" | "dinheiro" | "boleto" | "outro";
+
+export type Payment = {
+  id: string;
+  accountId: string;
+  studentId: string;
+  planId?: string;
+  amount: number;
+  // Data de vencimento no formato YYYY-MM-DD.
+  dueAt: string;
+  paidAt?: string;
+  method?: PaymentMethod;
+  status: PaymentStatus;
+  referenceLabel?: string;
+  notes?: string;
+  createdAt: string;
+};
+
+// Situação financeira derivada das cobranças do aluno.
+export type BillingState = "em_dia" | "a_vencer" | "inadimplente" | "sem_plano";
+
+export type StudentBilling = {
+  state: BillingState;
+  nextPayment?: Payment;
+  overduePayment?: Payment;
+  overdueDays: number;
+  overdueAmount: number;
+  daysUntilDue?: number;
+};
+
+// ───────────────────────────── tarefas ─────────────────────────────────────
 
 export type TaskPriority = "baixa" | "media" | "alta";
 
 export type Task = {
   id: string;
-  ownerId: string;
+  accountId: string;
+  studentId?: string;
+  staffId?: string;
   title: string;
   description?: string;
   dueAt?: string;
-  clientId?: string;
   priority: TaskPriority;
   done: boolean;
+  doneAt?: string;
   createdAt: string;
 };
 
-export type ProposalStatus = "rascunho" | "enviada" | "aceita" | "recusada";
+// ───────────────────────────── histórico ───────────────────────────────────
 
-export type Proposal = {
+export type StudentActivityKind =
+  | "cadastro"
+  | "nota"
+  | "pagamento"
+  | "cobranca"
+  | "plano"
+  | "status"
+  | "contato"
+  | "tarefa";
+
+export type StudentActivity = {
   id: string;
-  ownerId: string;
-  clientId: string;
+  studentId: string;
+  kind: StudentActivityKind;
   title: string;
-  amount: number;
-  status: ProposalStatus;
-  createdAt: string;
-  sentAt?: string;
+  body?: string;
+  by: string;
+  at: string;
+  metadata?: Record<string, unknown>;
 };
 
-export type SimulationStatus = "rascunho" | "enviada" | "arquivada";
-
-export type SimulationData = {
-  client: {
-    name: string;
-    companyName?: string;
-    document?: string;
-    email?: string;
-    phone?: string;
-    address?: string;
-    consumerUnit?: string;
-    distributor?: string;
-    locationState?: string;
-    locationCity?: string;
-  };
-  current: {
-    averageConsumptionKwh: number;
-    contractedDemandKw?: number;
-    monthlyCost: number;
-    annualCost: number;
-    averageTariffMwh: number;
-    tariffModality?: string;
-    billComponents: { label: string; amount: number; percent: number }[];
-  };
-  projected: {
-    monthlyCost: number;
-    annualCost: number;
-    commercializer?: string;
-    contractType?: string;
-    energySource?: string;
-    discountPercent: number;
-    estimatedTariffMwh: number;
-    contractTermMonths: number;
-  };
-  technical?: {
-    submercado?: string;
-    tensao?: string;
-  };
-};
-
-export type SimulationResultsData = {
-  monthlySavings: number;
-  annualSavings: number;
-  contractSavings: number;
-  savingsPercent: number;
-  currentMonthlyCost: number;
-  projectedMonthlyCost: number;
-};
-
-export type Simulation = {
-  id: string;
-  userId: string;
-  clientId: string;
-  simulationData: SimulationData;
-  resultsData: SimulationResultsData;
-  status: SimulationStatus;
-  pdfUrl?: string;
-  createdAt: string;
-  sentAt?: string;
-};
+// ───────────────────────────── avisos ──────────────────────────────────────
 
 export type NotificationKind = "sistema" | "lead" | "tarefa" | "pagamento";
 
 export type Notification = {
   id: string;
-  ownerId: string;
   kind: NotificationKind;
   title: string;
   body: string;
@@ -265,9 +224,16 @@ export type Notification = {
   href?: string;
 };
 
+// ───────────────────────────── dashboard ───────────────────────────────────
+
 export type DashboardMetrics = {
-  walletSavings: number;
-  totalClients: number;
-  proposalsSent: number;
+  activeStudents: number;
+  delinquentStudents: number;
+  delinquentAmount: number;
+  dueSoonStudents: number;
+  activeStaff: number;
   openTasks: number;
+  overdueTasks: number;
+  activePlans: number;
+  monthlyRecurring: number;
 };

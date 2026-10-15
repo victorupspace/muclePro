@@ -14,7 +14,7 @@ import {
 } from "./StatusBadge";
 import { useAdminStore } from "@/lib/admin/store";
 import {
-  ACCOUNT_KIND_LABEL,
+  businessTypeLabel,
   formatRelative,
 } from "@/lib/admin/format";
 import { onlyDigits } from "@/lib/cadastro/masks";
@@ -23,12 +23,6 @@ import type { Account, AccountStatus, PaymentStatus } from "@/lib/admin/types";
 type Props = {
   filterStatus: AccountStatus;
 };
-
-const KIND_OPTIONS = [
-  { value: "all", label: "Todos os tipos" },
-  { value: "consultor", label: "Consultor" },
-  { value: "comercializadora", label: "Comercializadora" },
-];
 
 const ACTIVE_OPTIONS = [
   { value: "all", label: "Ativas e inativas" },
@@ -50,7 +44,6 @@ export function AccountsTableView({ filterStatus }: Props) {
   const { accounts, approve, generatePasswordLink, toggleActive, remove } = useAdminStore();
 
   const [search, setSearch] = useState("");
-  const [kind, setKind] = useState("all");
   const [activity, setActivity] = useState("all");
   const [payment, setPayment] = useState("all");
 
@@ -72,7 +65,6 @@ export function AccountsTableView({ filterStatus }: Props) {
     const qDigits = onlyDigits(q);
     return accounts
       .filter((a) => a.status === filterStatus)
-      .filter((a) => (kind === "all" ? true : a.kind === kind))
       .filter((a) =>
         activity === "all" ? true : activity === "active" ? a.active : !a.active,
       )
@@ -83,11 +75,12 @@ export function AccountsTableView({ filterStatus }: Props) {
           a.fullName.toLowerCase().includes(q) ||
           a.email.toLowerCase().includes(q) ||
           (a.companyName?.toLowerCase().includes(q) ?? false) ||
-          onlyDigits(a.phone).includes(qDigits) ||
-          onlyDigits(a.document).includes(qDigits)
+          businessTypeLabel(a.businessType).toLowerCase().includes(q) ||
+          (qDigits.length > 0 &&
+            (onlyDigits(a.phone).includes(qDigits) || onlyDigits(a.document).includes(qDigits)))
         );
       });
-  }, [accounts, filterStatus, kind, activity, payment, search]);
+  }, [accounts, filterStatus, activity, payment, search]);
 
   const drawerAccount = drawerId ? accounts.find((a) => a.id === drawerId) ?? null : null;
   const approveAcc = confirmApprove ? accounts.find((a) => a.id === confirmApprove) : undefined;
@@ -96,13 +89,13 @@ export function AccountsTableView({ filterStatus }: Props) {
 
   const columns: Column<Account>[] = [
     {
-      key: "name",
-      header: "Conta",
+      key: "establishment",
+      header: "Estabelecimento",
       mobilePrimary: true,
       render: (a) => (
         <div className="min-w-0">
-          <p className="truncate font-semibold text-ink-900">{a.fullName}</p>
-          <p className="truncate text-[11.5px] text-ink-500">{a.email}</p>
+          <p className="truncate font-semibold text-ink-900">{a.companyName ?? "—"}</p>
+          <p className="truncate text-[11.5px] text-ink-500">{businessTypeLabel(a.businessType)}</p>
           <div className="mt-2 flex flex-wrap items-center gap-1.5 md:hidden">
             <AccountStatusBadge status={a.status} />
             <ActiveBadge active={a.active} />
@@ -112,12 +105,13 @@ export function AccountsTableView({ filterStatus }: Props) {
       ),
     },
     {
-      key: "kind",
-      header: "Tipo",
+      key: "owner",
+      header: "Responsável",
       render: (a) => (
-        <span className="text-[12px] font-semibold text-ink-700">
-          {ACCOUNT_KIND_LABEL[a.kind]}
-        </span>
+        <div className="min-w-0">
+          <p className="truncate text-[12.5px] font-medium text-ink-900">{a.fullName}</p>
+          <p className="truncate text-[11.5px] text-ink-500">{a.email}</p>
+        </div>
       ),
     },
     {
@@ -132,16 +126,6 @@ export function AccountsTableView({ filterStatus }: Props) {
           <p className="text-[12.5px] font-medium text-ink-900">{a.document}</p>
         </div>
       ),
-    },
-    {
-      key: "company",
-      header: "Empresa",
-      render: (a) =>
-        a.companyName ? (
-          <span className="text-[12.5px] text-ink-700">{a.companyName}</span>
-        ) : (
-          <span className="text-[12.5px] text-ink-400">—</span>
-        ),
     },
     {
       key: "phone",
@@ -180,9 +164,13 @@ export function AccountsTableView({ filterStatus }: Props) {
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-        <SearchInput value={search} onChange={setSearch} className="w-full lg:max-w-[420px]" />
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <SelectFilter label="Tipo" value={kind} onChange={setKind} options={KIND_OPTIONS} />
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          className="w-full lg:max-w-[420px]"
+          placeholder="Buscar por estabelecimento, responsável, e-mail, telefone ou documento"
+        />
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <SelectFilter label="Atividade" value={activity} onChange={setActivity} options={ACTIVE_OPTIONS} />
           <SelectFilter label="Pagamento" value={payment} onChange={setPayment} options={PAYMENT_OPTIONS} />
         </div>
@@ -197,7 +185,7 @@ export function AccountsTableView({ filterStatus }: Props) {
             title={
               filterStatus === "nova"
                 ? "Nenhuma conta nova no momento"
-                : "Nenhuma conta ativa com esses filtros"
+                : "Nenhuma conta aprovada com esses filtros"
             }
             description="Ajuste a busca ou os filtros para visualizar outras contas."
           />

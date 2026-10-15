@@ -3,31 +3,33 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BarChart3,
-  Calculator,
+  CreditCard,
   HeadphonesIcon,
   LayoutDashboard,
+  ListTodo,
   LogOut,
   Settings,
+  UserCog,
   Users,
-  Workflow,
   X,
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { cn } from "@/lib/cn";
 
-const PRIMARY = [
+type Item = { label: string; href: string; icon: LucideIcon; external?: boolean };
+
+const PRIMARY: Item[] = [
   { label: "Dashboard", href: "/plataforma", icon: LayoutDashboard },
-  { label: "Simulador", href: "/plataforma/simulador", icon: Calculator },
-  { label: "CRM", href: "/plataforma/crm", icon: Workflow },
-  { label: "Clientes", href: "/plataforma/clientes", icon: Users },
-  { label: "Relatórios", href: "/plataforma/relatorios", icon: BarChart3 },
+  { label: "Alunos", href: "/plataforma/alunos", icon: Users },
+  { label: "Equipe", href: "/plataforma/equipe", icon: UserCog },
+  { label: "Planos", href: "/plataforma/planos", icon: CreditCard },
+  { label: "Tarefas", href: "/plataforma/tarefas", icon: ListTodo },
 ];
 
-const SECONDARY = [
+const SECONDARY: Item[] = [
   { label: "Configurações", href: "/plataforma/configuracoes", icon: Settings },
-  { label: "Fale conosco", href: "/plataforma/suporte", icon: HeadphonesIcon },
+  { label: "Fale conosco", href: "mailto:contato@musclepro.com.br", icon: HeadphonesIcon, external: true },
 ];
 
 type Props = {
@@ -71,7 +73,7 @@ export function Sidebar({ fullName, companyName, onSignOut, onClose }: Props) {
 
       <nav className="mt-5 flex-1 space-y-0.5 px-3">
         <p className="px-3 pb-1.5 text-[9.5px] font-bold uppercase tracking-[0.16em] text-ink-400">
-          Plataforma
+          Operação
         </p>
         {PRIMARY.map((item) => (
           <NavItem key={item.href} item={item} pathname={pathname} />
@@ -99,33 +101,37 @@ export function Sidebar({ fullName, companyName, onSignOut, onClose }: Props) {
   );
 }
 
-function NavItem({
-  item,
-  pathname,
-}: {
-  item: { label: string; href: string; icon: LucideIcon };
-  pathname: string | null;
-}) {
+function NavItem({ item, pathname }: { item: Item; pathname: string | null }) {
   const active =
-    item.href === "/plataforma"
-      ? pathname === "/plataforma"
-      : pathname?.startsWith(item.href);
+    !item.external &&
+    (item.href === "/plataforma" ? pathname === "/plataforma" : pathname?.startsWith(item.href));
   const Icon = item.icon;
-  return (
-    <Link
-      href={item.href}
-      className={cn(
-        "group relative flex items-center gap-2.5 rounded-btn px-3 py-2.5 text-[13px] font-medium transition-colors",
-        active
-          ? "bg-brand text-white"
-          : "text-ink-600 hover:bg-ink-100 hover:text-ink-900",
-      )}
-    >
+  const className = cn(
+    "group relative flex items-center gap-2.5 rounded-btn px-3 py-2.5 text-[13px] font-medium transition-colors",
+    active ? "bg-brand text-white" : "text-ink-600 hover:bg-ink-100 hover:text-ink-900",
+  );
+
+  const content = (
+    <>
       <Icon className="h-3.5 w-3.5" strokeWidth={2.2} />
       {item.label}
       {active && (
         <span className="absolute right-3 top-1/2 h-1 w-1 -translate-y-1/2 rounded-full bg-brand-light" />
       )}
+    </>
+  );
+
+  if (item.external) {
+    return (
+      <a href={item.href} className={className}>
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <Link href={item.href} className={className}>
+      {content}
     </Link>
   );
 }

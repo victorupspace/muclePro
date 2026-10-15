@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
-import { CreditCard, Eye, Plus, Trash2 } from "lucide-react";
+import { CreditCard, Eye, Plus, Trash2, X } from "lucide-react";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { DataTable, TableButton, type Column } from "@/components/admin/DataTable";
 import { EmptyState } from "@/components/admin/EmptyState";
@@ -27,20 +27,21 @@ import { usePlataformaStore } from "@/lib/plataforma/store";
 import type { BillingState, Payment, RiskLevel, Student } from "@/lib/plataforma/types";
 
 const BILLING_OPTIONS: { value: "all" | BillingState; label: string }[] = [
-  { value: "all", label: "Todas as situações" },
+  { value: "all", label: "Todas" },
   { value: "inadimplente", label: BILLING_STATE_LABEL.inadimplente },
   { value: "a_vencer", label: BILLING_STATE_LABEL.a_vencer },
   { value: "em_dia", label: BILLING_STATE_LABEL.em_dia },
   { value: "sem_plano", label: BILLING_STATE_LABEL.sem_plano },
 ];
 
-const RISK_OPTIONS: { value: "all" | RiskLevel | "atencao"; label: string }[] = [
-  { value: "all", label: "Qualquer risco" },
-  { value: "atencao", label: "Alto e médio" },
-  { value: "alto", label: "Risco alto" },
-  { value: "medio", label: "Risco médio" },
-  { value: "baixo", label: "Risco baixo" },
-];
+// Sem seletor na tela: o recorte por risco chega por link (radar do painel e
+// resumo diário) e aparece como etiqueta que dá para limpar.
+const RISK_LINK_LABEL: Record<"atencao" | RiskLevel, string> = {
+  atencao: "alto e médio",
+  alto: "alto",
+  medio: "médio",
+  baixo: "baixo",
+};
 
 const STATUS_OPTIONS = [
   { value: "ativo", label: "Ativos" },
@@ -73,9 +74,7 @@ function AlunosPageContent() {
     BILLING_OPTIONS.some((o) => o.value === initialBilling) ? initialBilling : "all",
   );
   const [status, setStatus] = useState<string>("ativo");
-  const [riskFilter, setRiskFilter] = useState<string>(
-    RISK_OPTIONS.some((o) => o.value === initialRisk) ? initialRisk : "all",
-  );
+  const [riskFilter, setRiskFilter] = useState<string>(initialRisk in RISK_LINK_LABEL ? initialRisk : "all");
   const [planFilter, setPlanFilter] = useState<string>("all");
   const [unitFilter, setUnitFilter] = useState<string>("all");
   const [addOpen, setAddOpen] = useState(false);
@@ -128,7 +127,7 @@ function AlunosPageContent() {
 
   const planOptions = useMemo(
     () => [
-      { value: "all", label: "Todos os planos" },
+      { value: "all", label: "Todos" },
       ...plans.map((p) => ({ value: p.id, label: p.name })),
       { value: "none", label: "Sem plano" },
     ],
@@ -136,7 +135,7 @@ function AlunosPageContent() {
   );
 
   const unitOptions = useMemo(
-    () => [{ value: "all", label: "Todas as unidades" }, ...units.map((u) => ({ value: u.id, label: u.name }))],
+    () => [{ value: "all", label: "Todas" }, ...units.map((u) => ({ value: u.id, label: u.name }))],
     [units],
   );
 
@@ -269,23 +268,41 @@ function AlunosPageContent() {
         }
       />
 
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
         <SearchInput
           value={search}
           onChange={setSearch}
-          className="w-full lg:max-w-[420px]"
-          placeholder="Buscar por nome, WhatsApp, CPF ou plano"
+          className="w-full min-w-0 xl:max-w-[300px] xl:flex-1"
+          placeholder="Buscar por nome, WhatsApp ou CPF"
         />
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 xl:flex-nowrap">
           <SelectFilter label="Situação" value={billing} onChange={setBilling} options={BILLING_OPTIONS} />
           <SelectFilter label="Status" value={status} onChange={setStatus} options={STATUS_OPTIONS} />
-          <SelectFilter label="Risco" value={riskFilter} onChange={setRiskFilter} options={RISK_OPTIONS} />
           <SelectFilter label="Plano" value={planFilter} onChange={setPlanFilter} options={planOptions} />
           {units.length > 1 && !scopedUnit && (
             <SelectFilter label="Unidade" value={unitFilter} onChange={setUnitFilter} options={unitOptions} />
           )}
         </div>
       </div>
+
+      {riskFilter !== "all" && (
+        <div className="-mt-2 flex items-center gap-2">
+          <span className="inline-flex h-8 items-center gap-1.5 rounded-full bg-warning-50 pl-3 pr-1 text-[12px] font-semibold text-warning-800 ring-1 ring-inset ring-warning-200">
+            Risco de saída: {RISK_LINK_LABEL[riskFilter as keyof typeof RISK_LINK_LABEL]}
+            <button
+              type="button"
+              onClick={() => {
+                setRiskFilter("all");
+                router.replace("/plataforma/alunos", { scroll: false });
+              }}
+              aria-label="Limpar filtro de risco"
+              className="inline-flex h-6 w-6 items-center justify-center rounded-full transition-colors hover:bg-warning-100"
+            >
+              <X className="h-3.5 w-3.5" strokeWidth={2.4} />
+            </button>
+          </span>
+        </div>
+      )}
 
       <div ref={tableRef}>
         <DataTable

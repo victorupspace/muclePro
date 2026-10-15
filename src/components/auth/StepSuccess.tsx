@@ -6,11 +6,17 @@ import { Check, Clock, Mail } from "lucide-react";
 import { EASE } from "@/lib/motion";
 
 const COPY = {
-  eyebrow: "Cadastro recebido",
-  title: "Obrigado por seu interesse no musclePro.",
-  body: "Nosso time vai analisar o cadastro do seu estabelecimento e entrar em contato em até 48 horas para liberar o acesso. Fique atento ao seu e-mail e telefone.",
-  sla: "Resposta em até 48 horas",
+  eyebrow: "Cadastro em avaliação",
+  title: "Recebemos o seu cadastro.",
+  body: "Agora nossa equipe avalia os dados do seu estabelecimento. Se estiver tudo certo, você recebe a confirmação por e-mail e WhatsApp com o link para criar sua senha e entrar no musclePro.",
+  sla: "Avaliação em até 48 horas úteis",
 };
+
+const NEXT = [
+  { title: "Avaliação", body: "Conferimos os dados do responsável e do estabelecimento.", state: "now" },
+  { title: "Confirmação", body: "Aprovado, você recebe o link de acesso por e-mail e WhatsApp.", state: "next" },
+  { title: "Teste grátis de 14 dias", body: "No primeiro acesso, sua conta já está em teste. Os planos aparecem logo ao entrar.", state: "next" },
+] as const;
 
 export function StepSuccess() {
   return (
@@ -48,8 +54,23 @@ export function StepSuccess() {
 
       <div className="mt-6 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
         <InfoChip icon={<Clock className="h-3.5 w-3.5" strokeWidth={2.4} />} label={COPY.sla} />
-        <InfoChip icon={<Mail className="h-3.5 w-3.5" strokeWidth={2.4} />} label="Verifique seu e-mail" />
+        <InfoChip icon={<Mail className="h-3.5 w-3.5" strokeWidth={2.4} />} label="Fique de olho no e-mail e WhatsApp" />
       </div>
+
+      <ol className="mt-6 space-y-3 border-l-2 border-ink-100 pl-4">
+        {NEXT.map((step) => (
+          <li key={step.title} className="relative">
+            <span
+              className={`absolute -left-[23px] top-1 h-3 w-3 rounded-full ring-4 ring-white ${step.state === "now" ? "bg-brand" : "bg-ink-200"}`}
+            />
+            <p className={`text-[13.5px] font-semibold ${step.state === "now" ? "text-brand" : "text-ink-900"}`}>
+              {step.title}
+              {step.state === "now" && <span className="ml-2 text-[11px] font-bold uppercase tracking-[0.1em]">em andamento</span>}
+            </p>
+            <p className="text-[12.5px] leading-[1.5] text-ink-500">{step.body}</p>
+          </li>
+        ))}
+      </ol>
 
       <div className="mt-10 flex flex-col gap-3 sm:flex-row">
         <Link
@@ -58,12 +79,12 @@ export function StepSuccess() {
         >
           Voltar para a home
         </Link>
-        <Link
-          href="/#contact"
+        <a
+          href="mailto:contato@musclepro.com.br?subject=Cadastro%20no%20musclePro"
           className="inline-flex h-12 flex-1 items-center justify-center rounded-btn border border-ink-200 text-[14px] font-semibold text-ink-700 transition-colors hover:border-ink-400 hover:text-ink-900"
         >
           Falar com o time
-        </Link>
+        </a>
       </div>
     </motion.div>
   );

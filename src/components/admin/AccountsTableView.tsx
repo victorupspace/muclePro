@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, CheckCircle2, Copy, Eye, KeyRound, Power, Trash2 } from "lucide-react";
+import { Check, CheckCircle2, Copy, Eye, KeyRound, Mail, MessageCircle, Power, Trash2 } from "lucide-react";
 import { DataTable, TableButton, type Column } from "./DataTable";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { AccountDetailDrawer } from "./DetailDrawer";
@@ -58,6 +58,10 @@ export function AccountsTableView({ filterStatus }: Props) {
     url: string;
     title: string;
     description: string;
+      kind?: "aprovacao" | "senha";
+    phone?: string;
+    email?: string;
+    companyName?: string;
   } | null>(null);
 
   const filtered = useMemo(() => {
@@ -245,6 +249,9 @@ export function AccountsTableView({ filterStatus }: Props) {
         onConfirm={() => {
           if (approveAcc) {
             const accountName = approveAcc.fullName;
+            const approveAccPhone = approveAcc.phone;
+            const approveAccEmail = approveAcc.email;
+            const approveAccCompany = approveAcc.companyName;
             setApproving(true);
             void approve(approveAcc.id)
               .then((result) => {
@@ -254,7 +261,11 @@ export function AccountsTableView({ filterStatus }: Props) {
                     url: result.setupLink,
                     title: "Conta aprovada",
                     description:
-                      "Envie manualmente este link para a pessoa definir a senha e acessar a plataforma.",
+                      "Envie a confirmação com o link para a pessoa criar a senha. O teste grátis de 14 dias já começou.",
+                    kind: "aprovacao",
+                    phone: approveAccPhone,
+                    email: approveAccEmail,
+                    companyName: approveAccCompany,
                   });
                 }
               })
@@ -271,6 +282,10 @@ export function AccountsTableView({ filterStatus }: Props) {
         url={accessLink?.url ?? ""}
         title={accessLink?.title ?? ""}
         description={accessLink?.description ?? ""}
+        kind={accessLink?.kind}
+        phone={accessLink?.phone}
+        email={accessLink?.email}
+        companyName={accessLink?.companyName}
         onClose={() => setAccessLink(null)}
       />
 
@@ -318,7 +333,11 @@ export function AccountsTableView({ filterStatus }: Props) {
             url: result.setupLink,
             title: "Novo link de senha gerado",
             description:
-              "Envie manualmente este link para a pessoa redefinir a senha de acesso à plataforma.",
+              "Envie este link para a pessoa redefinir a senha de acesso à plataforma.",
+            kind: "senha",
+            phone: account.phone,
+            email: account.email,
+            companyName: account.companyName,
           });
         }
       })
@@ -333,6 +352,10 @@ function AccessLinkDialog({
   title,
   description,
   onClose,
+  kind,
+  phone,
+  email,
+  companyName,
 }: {
   open: boolean;
   accountName: string;
@@ -340,10 +363,23 @@ function AccessLinkDialog({
   title: string;
   description: string;
   onClose: () => void;
+  kind?: "aprovacao" | "senha";
+  phone?: string;
+  email?: string;
+  companyName?: string;
 }) {
   const [copied, setCopied] = useState(false);
 
   if (!open) return null;
+
+  const first = accountName.trim().split(/\s+/)[0];
+  const message =
+    kind === "aprovacao"
+      ? `Olá, ${first}! O cadastro ${companyName ? `da ${companyName} ` : ""}no musclePro foi aprovado.\n\nCrie sua senha por este link: ${url}\n\nDepois é só entrar com o e-mail ${email ?? ""}. Sua conta começa com 14 dias de teste grátis e, ao entrar, você já vê os planos disponíveis.\n\nEquipe musclePro`
+      : `Olá, ${first}! Segue o link para redefinir sua senha do musclePro: ${url}\n\nEquipe musclePro`;
+  const subject = kind === "aprovacao" ? "Seu cadastro no musclePro foi aprovado" : "Redefinição de senha do musclePro";
+  const phoneDigits = (phone ?? "").replace(/\D/g, "");
+  const waNumber = phoneDigits.length <= 11 ? `55${phoneDigits}` : phoneDigits;
 
   async function copyLink() {
     try {
@@ -381,6 +417,31 @@ function AccessLinkDialog({
         <div className="mt-5 rounded-card border border-ink-200 bg-ink-50/70 p-3">
           <p className="break-all text-[12px] leading-[1.5] text-ink-700">{url}</p>
         </div>
+
+        {(phoneDigits.length >= 10 || email) && (
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            {phoneDigits.length >= 10 && (
+              <a
+                href={`https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-btn bg-success-600 px-4 text-[13px] font-semibold text-white transition-colors hover:bg-success-700 sm:h-10"
+              >
+                <MessageCircle className="h-4 w-4" strokeWidth={2.2} />
+                Enviar por WhatsApp
+              </a>
+            )}
+            {email && (
+              <a
+                href={`mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-btn border border-ink-200 px-4 text-[13px] font-semibold text-ink-700 transition-colors hover:border-ink-400 hover:bg-ink-50 sm:h-10"
+              >
+                <Mail className="h-4 w-4" strokeWidth={2.2} />
+                Enviar por e-mail
+              </a>
+            )}
+          </div>
+        )}
 
         <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <button

@@ -222,11 +222,12 @@ export function StepEstabelecimentoForm({ initial, onCancel, onSubmit }: Props) 
           Passo 01 — Dados do estabelecimento
         </p>
         <h1 className="mt-3 text-[32px] font-bold leading-[1.1] tracking-[-0.02em] text-ink-900">
-          Crie a conta do seu estabelecimento.
+          Peça a conta do seu estabelecimento.
         </h1>
         <p className="mt-3 text-[14px] leading-[1.6] text-ink-500">
           Preencha os dados do responsável e do espaço. Se informar o CNPJ, completamos razão
-          social e endereço automaticamente.
+          social e endereço automaticamente. Todo cadastro passa por uma avaliação da nossa equipe
+          antes da liberação.
         </p>
       </div>
 
@@ -361,6 +362,7 @@ export function StepEstabelecimentoForm({ initial, onCancel, onSubmit }: Props) 
       </motion.div>
 
       <div className="mt-auto space-y-3 pt-10">
+        <ApprovalSteps />
         <motion.button
           type="submit"
           disabled={!isFormValid || submitting}
@@ -373,7 +375,7 @@ export function StepEstabelecimentoForm({ initial, onCancel, onSubmit }: Props) 
               : "cursor-not-allowed bg-ink-100 text-ink-400",
           )}
         >
-          {submitting ? "Enviando..." : "Realizar cadastro"}
+          {submitting ? "Enviando..." : "Enviar cadastro para avaliação"}
         </motion.button>
         <button
           type="button"
@@ -384,6 +386,33 @@ export function StepEstabelecimentoForm({ initial, onCancel, onSubmit }: Props) 
         </button>
       </div>
     </motion.form>
+  );
+}
+
+// Deixa claro, antes de enviar, que a conta só é liberada depois da avaliação.
+function ApprovalSteps() {
+  const steps = [
+    { title: "Avaliação do cadastro", body: "Nossa equipe confere os dados em até 48 horas úteis." },
+    { title: "Confirmação por e-mail e WhatsApp", body: "Se aprovado, você recebe o link para criar sua senha." },
+    { title: "14 dias de teste grátis", body: "O teste começa na aprovação. Depois, você escolhe o plano." },
+  ];
+  return (
+    <div className="rounded-card border border-ink-200 bg-ink-50/60 p-4">
+      <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500">Como funciona a liberação</p>
+      <ol className="mt-3 space-y-2.5">
+        {steps.map((step, i) => (
+          <li key={step.title} className="flex gap-3">
+            <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand text-[11px] font-bold text-white">
+              {i + 1}
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[13px] font-semibold text-ink-900">{step.title}</span>
+              <span className="block text-[12.5px] leading-[1.5] text-ink-500">{step.body}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }
 

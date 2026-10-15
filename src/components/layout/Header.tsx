@@ -116,7 +116,6 @@ export function Header() {
             </button>
           </div>
 
-          <StatusPill onDark={!scrolled} className="hidden lg:inline-flex" />
         </div>
 
         <AnimatePresence>
@@ -159,7 +158,6 @@ export function Header() {
                     <UserPlus className="h-4 w-4" strokeWidth={2.2} />
                     Cadastre-se
                   </Link>
-                  <StatusPill full onDark />
                 </div>
               </div>
             </motion.div>
@@ -167,38 +165,5 @@ export function Header() {
         </AnimatePresence>
       </div>
     </motion.header>
-  );
-}
-
-function StatusPill({
-  full = false,
-  onDark = false,
-  className,
-}: {
-  full?: boolean;
-  onDark?: boolean;
-  className?: string;
-}) {
-  return (
-    <motion.a
-      href="#contact"
-      whileHover={{ scale: 1.03 }}
-      whileTap={{ scale: 0.97 }}
-      transition={{ duration: 0.25, ease: EASE }}
-      className={cn(
-        "group inline-flex h-[68px] items-center gap-2.5 rounded-lg2 px-5 text-[13px] font-semibold text-white transition-colors",
-        onDark
-          ? "bg-brand shadow-[0_18px_42px_-22px_rgb(var(--color-brand-hover)/0.9),inset_0_0_0_1px_rgba(255,255,255,0.16),inset_0_1px_0_rgba(255,255,255,0.2)] hover:bg-brand-hover"
-          : "bg-brand shadow-[0_18px_42px_-22px_rgb(var(--color-brand)/0.9),inset_0_1px_0_rgba(255,255,255,0.2)] hover:bg-brand-hover",
-        full && "h-12 w-full justify-center rounded-btn px-4",
-        className,
-      )}
-    >
-      <span className="relative inline-flex h-2 w-2 items-center justify-center">
-        <span className="absolute inline-flex h-2 w-2 rounded-full bg-success-400 animate-pulseDot" />
-        <span className="relative inline-flex h-2 w-2 rounded-full bg-success-300" />
-      </span>
-      <span className="whitespace-nowrap">Fale com a gente</span>
-    </motion.a>
   );
 }

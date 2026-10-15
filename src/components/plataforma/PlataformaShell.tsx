@@ -11,6 +11,7 @@ import { usePlataformaStore } from "@/lib/plataforma/store";
 import { BillingBanner } from "./BillingBanner";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
+import { TrialPlansModal } from "./TrialPlansModal";
 import { useToast } from "./Toast";
 
 export function PlataformaShell({ children }: { children: ReactNode }) {
@@ -63,6 +64,7 @@ export function PlataformaShell({ children }: { children: ReactNode }) {
     <>
       <SplashScreen storageKey="musclepro:splash:plataforma" />
       <ActionErrorToaster />
+      <TrialPlansModal />
       <div className="flex min-h-svh bg-surface">
         <aside className="sticky top-0 hidden h-svh w-[248px] shrink-0 border-r border-ink-200 bg-white lg:flex lg:flex-col">
           <Sidebar

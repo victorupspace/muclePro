@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { BadgeCheck, CalendarClock, Lock, Mail, ShieldAlert, Wallet } from "lucide-react";
 import { EmptyState } from "@/components/admin/EmptyState";
 import { SubscriptionBadge } from "@/components/plataforma/SubscriptionBadge";
+import { PlanPicker } from "@/components/plataforma/PlanPicker";
 import { PageIntro, useRevealList } from "@/components/plataforma/motion";
 import { cn } from "@/lib/cn";
 import { daysFromToday, formatCurrencyDetailed, formatDateValue, toDateValue } from "@/lib/plataforma/format";
@@ -107,6 +108,18 @@ export default function AssinaturaPage() {
           </a>
         </InfoCard>
       </div>
+
+      {!invoices.some((i) => i.status === "paga") && billing?.status !== "cancelado" && (
+        <section className="rounded-card border border-ink-200 bg-white p-4 md:p-5">
+          <h2 className="text-[13.5px] font-bold text-ink-900">{billing?.planName ? "Seu plano" : "Escolha seu plano"}</h2>
+          <p className="mb-3 mt-0.5 text-[12.5px] text-ink-500">
+            {profile?.isOwner
+              ? "Nada é cobrado agora: a primeira fatura vence no fim do teste grátis."
+              : "Só o responsável pela conta escolhe o plano."}
+          </p>
+          <PlanPicker />
+        </section>
+      )}
 
       <section className="rounded-card border border-ink-200 bg-white">
         <header className="flex items-center gap-2 border-b border-ink-100 px-4 py-3 md:px-5">

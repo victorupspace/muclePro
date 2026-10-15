@@ -52,7 +52,7 @@ export function Sidebar({ fullName, companyName, roleLine, showTeamLog, onSignOu
 
   return (
     <>
-      <div className="flex items-center justify-between border-b border-ink-200 px-5 py-5">
+      <div className="flex h-[77px] shrink-0 items-center justify-between border-b border-ink-200 px-5">
         <Link href="/plataforma" className="inline-flex">
           <Logo variant="dark" className="scale-[0.7] origin-left" />
         </Link>

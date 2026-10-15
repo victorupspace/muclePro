@@ -434,6 +434,14 @@ export async function sendEmail(to: string, email: { subject: string; html: stri
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { message?: string };
+    // Sem domínio verificado, o Resend só entrega para o dono da conta.
+    const owner = body.message?.match(/own email address \(([^)]+)\)/)?.[1];
+    if (owner) {
+      throw new DigestError(
+        `Enquanto nenhum domínio de envio estiver verificado, o resumo só pode ir para ${owner}.`,
+        422,
+      );
+    }
     throw new DigestError(body.message || `Falha no envio (${res.status}).`, 502);
   }
   return (await res.json().catch(() => ({}))) as { id?: string };

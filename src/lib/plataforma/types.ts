@@ -134,6 +134,19 @@ export type Plan = {
 
 export type StudentStatus = "ativo" | "inativo";
 
+export type HealthCondition =
+  | "coluna"
+  | "joelho"
+  | "ombro"
+  | "hipertensao"
+  | "diabetes"
+  | "cardiaco"
+  | "respiratorio"
+  | "gestante"
+  | "cirurgia_recente"
+  | "obesidade"
+  | "outro";
+
 export type ChurnReason = "preco" | "mudanca" | "horario" | "saude" | "insatisfacao" | "financeiro" | "outro";
 
 export type Student = {
@@ -147,6 +160,8 @@ export type Student = {
   whatsapp?: string;
   email?: string;
   medicalNotes?: string;
+  healthConditions: HealthCondition[];
+  healthRestrictions?: string;
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   status: StudentStatus;
@@ -208,6 +223,8 @@ export type Task = {
   priority: TaskPriority;
   done: boolean;
   doneAt?: string;
+  // Lembrete de renovação de ciclo, criado pelo banco a partir da ficha.
+  workoutId?: string;
   createdAt: string;
 };
 
@@ -260,7 +277,7 @@ export type AccountSettings = {
 
 // ───────────────────────────── registro da equipe ──────────────────────────
 
-export type TeamLogEntity = "aluno" | "pagamento" | "plano" | "funcionario" | "unidade" | "tarefa" | "lead" | "treino";
+export type TeamLogEntity = "aluno" | "pagamento" | "plano" | "funcionario" | "unidade" | "tarefa" | "lead" | "treino" | "avaliacao";
 export type TeamLogAction =
   | "criou"
   | "editou"
@@ -339,6 +356,8 @@ export type WorkoutExercise = {
 export type WorkoutDay = {
   name: string;
   focus?: string;
+  // Dias da semana (0 = domingo … 6 = sábado).
+  weekdays?: number[];
   exercises: WorkoutExercise[];
 };
 
@@ -354,9 +373,36 @@ export type WorkoutProgram = {
   days: WorkoutDay[];
   startsOn: string;
   reviewOn?: string;
+  cycleMonths?: number;
+  endedOn?: string;
   active: boolean;
   createdAt: string;
   updatedAt: string;
+};
+
+// ───────────────────────────── avaliação física ────────────────────────────
+
+export type AssessmentKind = "inicial" | "reavaliacao";
+
+export type AssessmentMeasures = {
+  weightKg?: number;
+  heightCm?: number;
+  armCm?: number;
+  chestCm?: number;
+  waistCm?: number;
+  abdomenCm?: number;
+  thighCm?: number;
+};
+
+export type Assessment = AssessmentMeasures & {
+  id: string;
+  studentId: string;
+  kind: AssessmentKind;
+  measuredOn: string;
+  notes?: string;
+  authorStaffId?: string;
+  authorName?: string;
+  createdAt: string;
 };
 
 // ───────────────────────────── risco e caixa ───────────────────────────────

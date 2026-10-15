@@ -15,14 +15,15 @@ import { formatDateValue, formatRelative, initials, toDateValue } from "@/lib/pl
 import { useAccountSession } from "@/lib/plataforma/session";
 import { usePlataformaStore } from "@/lib/plataforma/store";
 import type { Student, WorkoutProgram } from "@/lib/plataforma/types";
-import { downloadWorkoutPdf, exerciseCount, workoutStatus } from "@/lib/plataforma/workouts";
+import { cycleLabel, downloadWorkoutPdf, exerciseCount, workoutStatus } from "@/lib/plataforma/workouts";
 
 type View = "fichas" | "sem_ficha";
 
 const STATUS_OPTIONS = [
-  { value: "uso", label: "Em uso e a reavaliar" },
-  { value: "reavaliar", label: "Só a reavaliar" },
-  { value: "arquivada", label: "Arquivadas" },
+  { value: "uso", label: "Em uso" },
+  { value: "vencendo", label: "Vencem em breve" },
+  { value: "reavaliar", label: "Ciclo vencido" },
+  { value: "arquivada", label: "Encerradas (histórico)" },
   { value: "all", label: "Todas" },
 ];
 
@@ -49,7 +50,8 @@ export default function TreinosPage() {
   const stats = useMemo(() => {
     const month = toDateValue(new Date()).slice(0, 7);
     return {
-      inUse: workouts.filter((w) => workoutStatus(w) === "ativa").length,
+      inUse: workouts.filter((w) => w.active).length,
+      expiring: workouts.filter((w) => workoutStatus(w) === "vencendo").length,
       toReview: workouts.filter((w) => workoutStatus(w) === "reavaliar").length,
       createdThisMonth: workouts.filter((w) => w.createdAt.slice(0, 7) === month).length,
     };
@@ -64,13 +66,15 @@ export default function TreinosPage() {
         const st = workoutStatus(workout);
         if (status === "uso" && st === "arquivada") return false;
         if (status === "reavaliar" && st !== "reavaliar") return false;
+        if (status === "vencendo" && st !== "vencendo") return false;
         if (status === "arquivada" && st !== "arquivada") return false;
         if (author !== "all" && (workout.authorStaffId ?? "dono") !== author) return false;
         if (!q) return true;
         return student.fullName.toLowerCase().includes(q) || workout.title.toLowerCase().includes(q);
       })
       .sort((a, b) => {
-        const rank = (w: WorkoutProgram) => ({ reavaliar: 0, ativa: 1, arquivada: 2 })[workoutStatus(w)];
+        const RANK = { reavaliar: 0, vencendo: 1, ativa: 2, arquivada: 3 } as const;
+        const rank = (w: WorkoutProgram) => RANK[workoutStatus(w)];
         return rank(a.workout) - rank(b.workout) || a.student.fullName.localeCompare(b.student.fullName);
       });
   }, [workouts, studentById, search, status, author]);
@@ -133,14 +137,19 @@ export default function TreinosPage() {
     },
     {
       key: "review",
-      header: "Reavaliação",
-      mobileLabel: "Reavaliação",
+      header: "Vence em",
+      mobileLabel: "Vence em",
       render: ({ workout }) => (
         <div>
-          <p className={cn("text-[12.5px] font-semibold", workoutStatus(workout) === "reavaliar" ? "text-warning-800" : "text-ink-900")}>
-            {formatDateValue(workout.reviewOn)}
+          <p
+            className={cn(
+              "text-[12.5px] font-semibold",
+              workoutStatus(workout) === "reavaliar" ? "text-danger-700" : workoutStatus(workout) === "vencendo" ? "text-warning-800" : "text-ink-900",
+            )}
+          >
+            {workout.active ? formatDateValue(workout.reviewOn) : `Encerrada ${formatDateValue(workout.endedOn)}`}
           </p>
-          <p className="text-[11px] text-ink-500">atualizada {formatRelative(workout.updatedAt)}</p>
+          <p className="text-[11px] text-ink-500">{workout.cycleMonths ? `Ciclo de ${cycleLabel(workout.cycleMonths)}` : `Desde ${formatDateValue(workout.startsOn)}`}</p>
         </div>
       ),
     },
@@ -206,14 +215,28 @@ export default function TreinosPage() {
       />
 
       <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <KpiCard label="Fichas em uso" value={<AnimatedNumber value={stats.inUse} />} hint="Dentro do prazo de reavaliação" icon={<Dumbbell className="h-3.5 w-3.5" strokeWidth={2.4} />} delay={0.05} />
         <KpiCard
-          label="Para reavaliar"
-          value={<AnimatedNumber value={stats.toReview} />}
-          hint="Prazo de reavaliação vencido"
-          highlight={stats.toReview > 0}
+          label="Fichas em uso"
+          value={<AnimatedNumber value={stats.inUse} />}
+          hint={`${stats.createdThisMonth} montada${stats.createdThisMonth === 1 ? "" : "s"} neste mês`}
+          icon={<Dumbbell className="h-3.5 w-3.5" strokeWidth={2.4} />}
+          delay={0.05}
+        />
+        <KpiCard
+          label="Vencem em 14 dias"
+          value={<AnimatedNumber value={stats.expiring} />}
+          hint="Hora de reavaliar e montar o próximo ciclo"
+          highlight={stats.expiring > 0}
           icon={<CalendarClock className="h-3.5 w-3.5" strokeWidth={2.4} />}
           delay={0.1}
+        />
+        <KpiCard
+          label="Ciclos vencidos"
+          value={<AnimatedNumber value={stats.toReview} />}
+          hint="Aluno treinando com ficha antiga"
+          tone={stats.toReview > 0 ? "danger" : undefined}
+          icon={<ClipboardList className="h-3.5 w-3.5" strokeWidth={2.4} />}
+          delay={0.15}
         />
         <KpiCard
           label="Ativos sem ficha"
@@ -221,9 +244,8 @@ export default function TreinosPage() {
           hint={`De ${activeStudents.length} alunos ativos`}
           tone={withoutWorkout.length > 0 ? "danger" : undefined}
           icon={<UserRoundX className="h-3.5 w-3.5" strokeWidth={2.4} />}
-          delay={0.15}
+          delay={0.2}
         />
-        <KpiCard label="Montadas no mês" value={<AnimatedNumber value={stats.createdThisMonth} />} hint="Fichas novas" icon={<ClipboardList className="h-3.5 w-3.5" strokeWidth={2.4} />} delay={0.2} />
       </section>
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center">

@@ -43,6 +43,7 @@ const ENTITY_OPTIONS: { value: "all" | TeamLogEntity; label: string }[] = [
   { value: "lead", label: "Funil de matrículas" },
   { value: "pagamento", label: "Pagamentos" },
   { value: "treino", label: "Treinos" },
+  { value: "avaliacao", label: "Avaliações físicas" },
   { value: "plano", label: "Planos" },
   { value: "funcionario", label: "Equipe" },
   { value: "unidade", label: "Unidades" },
@@ -128,7 +129,7 @@ export default function AtividadesPage() {
 }
 
 function TeamLog({ enabled }: { enabled: boolean }) {
-  const { payments } = usePlataformaStore();
+  const { payments, assessments, workouts } = usePlataformaStore();
   const [period, setPeriod] = useState("7");
   const [entity, setEntity] = useState<string>("all");
   const [actor, setActor] = useState<string>("all");
@@ -248,8 +249,14 @@ function TeamLog({ enabled }: { enabled: boolean }) {
         return "/plataforma/tarefas";
       case "lead":
         return `/plataforma/matriculas?lead=${entry.entityId}`;
-      case "treino":
-        return "/plataforma/treinos";
+      case "treino": {
+        const studentId = workouts.find((w) => w.id === entry.entityId)?.studentId;
+        return studentId ? `/plataforma/alunos/${studentId}` : "/plataforma/treinos";
+      }
+      case "avaliacao": {
+        const studentId = assessments.find((a) => a.id === entry.entityId)?.studentId;
+        return studentId ? `/plataforma/alunos/${studentId}` : undefined;
+      }
     }
   }
 

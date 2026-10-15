@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Check, ListTodo, Plus, Trash2 } from "lucide-react";
+import { Check, Dumbbell, ListTodo, Plus, Trash2 } from "lucide-react";
 import { EmptyState } from "@/components/admin/EmptyState";
 import { SelectFilter } from "@/components/admin/Filters";
 import { AddTaskModal } from "@/components/plataforma/AddTaskModal";
 import { PageIntro, useRevealList } from "@/components/plataforma/motion";
 import { cn } from "@/lib/cn";
 import { TASK_PRIORITY_LABEL, formatDateTime } from "@/lib/plataforma/format";
+import { useAccountSession } from "@/lib/plataforma/session";
 import { usePlataformaStore } from "@/lib/plataforma/store";
 import type { Task, TaskPriority } from "@/lib/plataforma/types";
 
@@ -28,7 +29,11 @@ type Group = { key: string; label: string; tasks: Task[]; tone?: "danger" | "bra
 
 export default function TarefasPage() {
   const { tasks, students, staff, toggleTask, removeTask, loading } = usePlataformaStore();
+  const { profile } = useAccountSession();
+  // "mine" = tarefas do próprio usuário (do dono: as sem responsável).
+  const myStaffId = profile?.staffId ?? null;
   const [view, setView] = useState("open");
+  const [owner, setOwner] = useState(profile?.permissions.isManager ? "all" : "mine");
   const [studentFilter, setStudentFilter] = useState("all");
   const [addOpen, setAddOpen] = useState(false);
 
@@ -37,6 +42,8 @@ export default function TarefasPage() {
       if (view === "open" && t.done) return false;
       if (view === "done" && !t.done) return false;
       if (studentFilter !== "all" && (t.studentId ?? "none") !== studentFilter) return false;
+      if (owner === "mine" && (t.staffId ?? null) !== myStaffId) return false;
+      if (owner !== "all" && owner !== "mine" && (t.staffId ?? "none") !== owner) return false;
       return true;
     });
 
@@ -63,10 +70,20 @@ export default function TarefasPage() {
       { key: "nodate", label: "Sem prazo", tasks: noDate },
       { key: "done", label: "Concluídas", tasks: done },
     ].filter((g) => g.tasks.length > 0);
-  }, [tasks, view, studentFilter]);
+  }, [tasks, view, studentFilter, owner, myStaffId]);
 
   const total = groups.reduce((n, g) => n + g.tasks.length, 0);
   const openCount = tasks.filter((t) => !t.done).length;
+
+  const ownerOptions = useMemo(
+    () => [
+      { value: "all", label: "Toda a equipe" },
+      { value: "mine", label: "Minhas tarefas" },
+      ...staff.filter((s) => s.active && s.id !== myStaffId).map((s) => ({ value: s.id, label: s.fullName })),
+      ...(profile?.isOwner ? [] : [{ value: "none", label: "Sem responsável" }]),
+    ],
+    [staff, myStaffId, profile?.isOwner],
+  );
 
   const studentOptions = useMemo(
     () => [
@@ -101,6 +118,7 @@ export default function TarefasPage() {
 
       <div className="flex flex-wrap items-center gap-2">
         <SelectFilter label="Mostrar" value={view} onChange={setView} options={VIEW_OPTIONS} />
+        <SelectFilter label="Responsável" value={owner} onChange={setOwner} options={ownerOptions} />
         <SelectFilter label="Aluno" value={studentFilter} onChange={setStudentFilter} options={studentOptions} />
       </div>
 
@@ -211,6 +229,12 @@ function TaskGroup({
                     </Link>
                   )}
                   {owner && <span>Resp.: {owner}</span>}
+                  {task.workoutId && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-brand/[0.06] px-1.5 py-0.5 font-semibold text-brand">
+                      <Dumbbell className="h-3 w-3" strokeWidth={2.4} />
+                      Ciclo de treino
+                    </span>
+                  )}
                 </p>
               </div>
               <button

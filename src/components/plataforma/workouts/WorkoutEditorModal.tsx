@@ -4,12 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Copy, Plus, Trash2, X } from "lucide-react";
 import { Field, ModalFooter, inputClass, selectClass, textareaClass } from "../FormKit";
 import { Modal } from "../Modal";
+import { HealthAlert } from "../health/HealthKit";
 import { useToast } from "../Toast";
 import { cn } from "@/lib/cn";
-import { WORKOUT_LEVEL_LABEL, addMonthsToDateValue, firstName, todayValue } from "@/lib/plataforma/format";
+import { WEEKDAY_ORDER, WEEKDAY_SHORT, WORKOUT_LEVEL_LABEL, addMonthsToDateValue, firstName, todayValue } from "@/lib/plataforma/format";
 import { usePlataformaStore } from "@/lib/plataforma/store";
 import type { WorkoutDay, WorkoutExercise, WorkoutLevel, WorkoutProgram } from "@/lib/plataforma/types";
-import { ALL_EXERCISES, WORKOUT_TEMPLATES, cleanDays, emptyDay, emptyExercise } from "@/lib/plataforma/workouts";
+import { ALL_EXERCISES, CYCLE_OPTIONS, DEFAULT_CYCLE_MONTHS, WORKOUT_TEMPLATES, cleanDays, cycleLabel, emptyDay, emptyExercise } from "@/lib/plataforma/workouts";
 
 type Props = {
   open: boolean;
@@ -36,6 +37,7 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
   const [level, setLevel] = useState<WorkoutLevel | "">("");
   const [startsOn, setStartsOn] = useState(todayValue());
   const [reviewOn, setReviewOn] = useState("");
+  const [cycleMonths, setCycleMonths] = useState<number | "">(DEFAULT_CYCLE_MONTHS);
   const [notes, setNotes] = useState("");
   const [days, setDays] = useState<WorkoutDay[]>([emptyDay(0)]);
   const [activeDay, setActiveDay] = useState(0);
@@ -51,9 +53,15 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
     setGoal(source?.goal ?? "");
     setLevel(source?.level ?? "");
     setStartsOn(workout?.startsOn ?? todayValue());
-    setReviewOn(workout?.reviewOn ?? (workout ? "" : addMonthsToDateValue(todayValue(), 2)));
+    const months = workout ? workout.cycleMonths ?? "" : copyFrom?.cycleMonths ?? DEFAULT_CYCLE_MONTHS;
+    setCycleMonths(months);
+    setReviewOn(workout?.reviewOn ?? (workout ? "" : months ? addMonthsToDateValue(todayValue(), months) : ""));
     setNotes(source?.notes ?? "");
-    setDays(source?.days.length ? source.days.map((d) => ({ ...d, exercises: d.exercises.map((e) => ({ ...e })) })) : [emptyDay(0)]);
+    setDays(
+      source?.days.length
+        ? source.days.map((d) => ({ ...d, weekdays: [...(d.weekdays ?? [])], exercises: d.exercises.map((e) => ({ ...e })) }))
+        : [emptyDay(0)],
+    );
     setActiveDay(0);
     setReplaceCurrent(true);
     setError(null);
@@ -67,7 +75,22 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
     () => (editing ? [] : workouts.filter((w) => w.studentId === student && w.active)),
     [editing, workouts, student],
   );
-  const studentName = students.find((s) => s.id === student)?.fullName;
+  const studentObj = students.find((s) => s.id === student);
+  const studentName = studentObj?.fullName;
+
+  function changeCycle(value: string) {
+    const months = value ? Number(value) : "";
+    setCycleMonths(months);
+    if (months) setReviewOn(addMonthsToDateValue(startsOn || todayValue(), months));
+  }
+  function changeStart(value: string) {
+    setStartsOn(value);
+    if (cycleMonths && value) setReviewOn(addMonthsToDateValue(value, cycleMonths));
+  }
+  function toggleWeekday(d: number) {
+    const current = day.weekdays ?? [];
+    patchDay(activeDay, { weekdays: current.includes(d) ? current.filter((x) => x !== d) : [...current, d] });
+  }
 
   const day = days[activeDay] ?? days[0];
 
@@ -103,7 +126,7 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
     setActiveDay(days.length);
   }
   function duplicateDay() {
-    setDays((prev) => [...prev, { ...emptyDay(prev.length), focus: day.focus, exercises: day.exercises.map((e) => ({ ...e })) }]);
+    setDays((prev) => [...prev, { ...emptyDay(prev.length), focus: day.focus, weekdays: [], exercises: day.exercises.map((e) => ({ ...e })) }]);
     setActiveDay(days.length);
   }
   function removeDay(index: number) {
@@ -116,7 +139,7 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
     if (!t) return;
     setTitle((v) => v || t.title);
     setGoal((v) => v || t.goal);
-    setDays(t.days.map((d) => ({ ...d, exercises: d.exercises.map((e) => ({ ...e })) })));
+    setDays(t.days.map((d) => ({ ...d, weekdays: [...(d.weekdays ?? [])], exercises: d.exercises.map((e) => ({ ...e })) })));
     setActiveDay(0);
   }
 
@@ -138,6 +161,7 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
       days: clean,
       startsOn,
       reviewOn,
+      cycleMonths: cycleMonths || 0,
     };
     let saved: WorkoutProgram | null;
     if (workout) {
@@ -177,6 +201,7 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
       }
     >
       <form id="workout-form" onSubmit={handleSubmit} className="space-y-4">
+        {studentObj && <HealthAlert student={studentObj} />}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {!studentId && !editing && (
             <Field label="Aluno" required className="sm:col-span-2 lg:col-span-4">
@@ -206,10 +231,20 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
               ))}
             </select>
           </Field>
-          <Field label="Início">
-            <input type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)} className={inputClass} />
+          <Field label="Início do ciclo">
+            <input type="date" value={startsOn} onChange={(e) => changeStart(e.target.value)} className={inputClass} />
           </Field>
-          <Field label="Reavaliar em" hint="Avisa quando a ficha vencer.">
+          <Field label="Trocar a rotina a cada">
+            <select value={cycleMonths} onChange={(e) => changeCycle(e.target.value)} className={selectClass}>
+              <option value="">Sem prazo definido</option>
+              {CYCLE_OPTIONS.map((m) => (
+                <option key={m} value={m}>
+                  {cycleLabel(m)}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Vencimento do ciclo" hint={reviewOn ? "Lembrete na agenda de quem montou, 7 dias antes." : undefined}>
             <input type="date" value={reviewOn} onChange={(e) => setReviewOn(e.target.value)} className={inputClass} />
           </Field>
           {!editing && isBlank && (
@@ -293,13 +328,40 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
               </div>
             </div>
 
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500">Dias</span>
+              {WEEKDAY_ORDER.map((d) => {
+                const on = (day.weekdays ?? []).includes(d);
+                const usedElsewhere = days.some((other, i) => i !== activeDay && (other.weekdays ?? []).includes(d));
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => toggleWeekday(d)}
+                    title={usedElsewhere && !on ? "Já usado em outro treino" : undefined}
+                    className={cn(
+                      "inline-flex h-8 min-w-[46px] items-center justify-center rounded-full border px-2.5 text-[12px] font-semibold transition-colors",
+                      on
+                        ? "border-brand bg-brand text-white"
+                        : usedElsewhere
+                          ? "border-dashed border-ink-200 bg-white text-ink-400 hover:border-ink-400"
+                          : "border-ink-200 bg-white text-ink-700 hover:border-ink-400",
+                    )}
+                  >
+                    {WEEKDAY_SHORT[d]}
+                  </button>
+                );
+              })}
+            </div>
+
             <div className="hidden grid-cols-[22px_minmax(0,1fr)_60px_70px_80px_70px_76px] gap-1.5 px-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-ink-500 md:grid">
               <span>#</span>
               <span>Exercício</span>
               <span>Séries</span>
               <span>Reps</span>
               <span>Carga</span>
-              <span>Desc.</span>
+              <span title="Descanso entre as séries">Descanso</span>
               <span />
             </div>
 

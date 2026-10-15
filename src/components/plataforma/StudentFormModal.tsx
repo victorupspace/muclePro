@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 import { ChurnReasonPicker } from "./ChurnReasonModal";
 import { DatePickerField } from "./DatePickerField";
+import { HealthFields, MeasureFields, emptyMeasureDraft, measuresFrom, type HealthDraft, type MeasureDraft } from "./health/HealthKit";
 import { CurrencyInput, Field, inputClass, ModalFooter, SectionLabel, selectClass, textareaClass } from "./FormKit";
 import { Modal } from "./Modal";
 import { useToast } from "./Toast";
 import { maskCPF, maskPhoneBR } from "@/lib/cadastro/masks";
+import { hasAnyMeasure } from "@/lib/plataforma/assessments";
 import { PLAN_FREQUENCY_LABEL, formatCurrency, todayValue } from "@/lib/plataforma/format";
 import { useAccountSession } from "@/lib/plataforma/session";
 import { usePlataformaStore } from "@/lib/plataforma/store";
@@ -26,7 +28,7 @@ type Props = {
 };
 
 export function StudentFormModal({ open, onClose, student, focusPlan, prefill, title, onCreated }: Props) {
-  const { units, plans, addStudent, updateStudent, assignPlan } = usePlataformaStore();
+  const { units, plans, addStudent, updateStudent, assignPlan, addAssessment } = usePlataformaStore();
   const { push } = useToast();
   const { profile } = useAccountSession();
   const editing = Boolean(student);
@@ -43,7 +45,8 @@ export function StudentFormModal({ open, onClose, student, focusPlan, prefill, t
   const [unitId, setUnitId] = useState("");
   const [planId, setPlanId] = useState("");
   const [planStartedAt, setPlanStartedAt] = useState(todayValue());
-  const [medicalNotes, setMedicalNotes] = useState("");
+  const [health, setHealth] = useState<HealthDraft>({ conditions: [], restrictions: "", medicalNotes: "" });
+  const [measures, setMeasures] = useState<MeasureDraft>(emptyMeasureDraft());
   const [emergencyName, setEmergencyName] = useState("");
   const [emergencyPhone, setEmergencyPhone] = useState("");
   const [notes, setNotes] = useState("");
@@ -63,7 +66,12 @@ export function StudentFormModal({ open, onClose, student, focusPlan, prefill, t
     setUnitId(scopeUnitId ?? student?.unitId ?? prefill?.unitId ?? (units.find((u) => u.isMain)?.id ?? units[0]?.id ?? ""));
     setPlanId(student?.planId ?? "");
     setPlanStartedAt(student?.planStartedAt ?? todayValue());
-    setMedicalNotes(student?.medicalNotes ?? "");
+    setHealth({
+      conditions: student?.healthConditions ?? [],
+      restrictions: student?.healthRestrictions ?? "",
+      medicalNotes: student?.medicalNotes ?? "",
+    });
+    setMeasures(emptyMeasureDraft());
     setEmergencyName(student?.emergencyContactName ?? "");
     setEmergencyPhone(student?.emergencyContactPhone ?? "");
     setNotes(student?.notes ?? prefill?.notes ?? "");
@@ -95,7 +103,9 @@ export function StudentFormModal({ open, onClose, student, focusPlan, prefill, t
       cpf: cpf.replace(/\D/g, ""),
       birthDate,
       unitId,
-      medicalNotes: medicalNotes.trim(),
+      medicalNotes: health.medicalNotes.trim(),
+      healthConditions: health.conditions,
+      healthRestrictions: health.restrictions.trim(),
       emergencyContactName: emergencyName.trim(),
       emergencyContactPhone: emergencyPhone.trim(),
       notes: notes.trim(),
@@ -105,6 +115,8 @@ export function StudentFormModal({ open, onClose, student, focusPlan, prefill, t
       const created = await addStudent({ ...base, planId: planId || undefined, planStartedAt: planId ? planStartedAt : undefined });
       setSubmitting(false);
       if (created) {
+        const initial = measuresFrom(measures);
+        if (hasAnyMeasure(initial)) await addAssessment({ studentId: created.id, kind: "inicial", ...initial });
         await onCreated?.(created);
         push({ tone: "success", title: "Aluno cadastrado", description: `${created.fullName} já está na sua base.` });
         onClose();
@@ -253,17 +265,16 @@ export function StudentFormModal({ open, onClose, student, focusPlan, prefill, t
           )}
         </div>
 
-        <SectionLabel>Atendimento</SectionLabel>
+        {!editing && (
+          <>
+            <SectionLabel>Anamnese inicial</SectionLabel>
+            <MeasureFields value={measures} onChange={setMeasures} />
+          </>
+        )}
+
+        <SectionLabel>Saúde e atendimento</SectionLabel>
         <div className="space-y-3">
-          <Field label="Condição médica" hint="Alergias, lesões, restrições. Aparece em destaque na ficha.">
-            <textarea
-              value={medicalNotes}
-              onChange={(e) => setMedicalNotes(e.target.value)}
-              rows={2}
-              placeholder="Ex.: hipertensão controlada, evitar exercícios de alta intensidade"
-              className={textareaClass}
-            />
-          </Field>
+          <HealthFields value={health} onChange={setHealth} />
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Contato de emergência">
               <input

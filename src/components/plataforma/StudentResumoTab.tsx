@@ -27,6 +27,7 @@ import { usePlataformaStore } from "@/lib/plataforma/store";
 import {
   BILLING_STATE_LABEL,
   CHURN_REASON_LABEL,
+  HEALTH_CONDITION_LABEL,
   PLAN_FREQUENCY_LABEL,
   ageFromBirthDate,
   daysFromToday,
@@ -293,14 +294,31 @@ export function StudentResumoTab({
         </Card>
 
         <Card
-          title="Condição médica"
+          title="Saúde"
           icon={<HeartPulse className="h-3.5 w-3.5" strokeWidth={2.4} />}
-          tone={student.medicalNotes ? "warning" : undefined}
+          tone={student.healthConditions.length > 0 || student.healthRestrictions || student.medicalNotes ? "warning" : undefined}
         >
-          {student.medicalNotes ? (
-            <p className="text-[13px] leading-[1.6] text-warning-800">{student.medicalNotes}</p>
-          ) : (
+          {student.healthConditions.length === 0 && !student.healthRestrictions && !student.medicalNotes ? (
             <p className="text-[12.5px] text-ink-500">Nenhuma condição registrada.</p>
+          ) : (
+            <div className="space-y-2">
+              {student.healthConditions.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {student.healthConditions.map((c) => (
+                    <span key={c} className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-warning-800 ring-1 ring-inset ring-warning-200">
+                      {HEALTH_CONDITION_LABEL[c]}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {student.healthRestrictions && (
+                <p className="text-[13px] leading-[1.6] text-warning-800">
+                  <span className="font-semibold">Restrições: </span>
+                  {student.healthRestrictions}
+                </p>
+              )}
+              {student.medicalNotes && <p className="text-[12.5px] leading-[1.6] text-ink-700">{student.medicalNotes}</p>}
+            </div>
           )}
         </Card>
 

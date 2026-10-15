@@ -19,6 +19,8 @@ import type {
   Unit,
   Notification,
   ChurnReason,
+  Assessment,
+  HealthCondition,
   Lead,
   LeadEvent,
   LeadLostReason,
@@ -89,6 +91,8 @@ export type StudentRow = {
   whatsapp: string | null;
   email: string | null;
   medical_notes: string | null;
+  health_conditions: string[] | null;
+  health_restrictions: string | null;
   emergency_contact_name: string | null;
   emergency_contact_phone: string | null;
   status: StudentStatus;
@@ -127,6 +131,7 @@ export type TaskRow = {
   priority: TaskPriority;
   done: boolean;
   done_at: string | null;
+  workout_id: string | null;
   created_at: string;
 };
 
@@ -219,6 +224,8 @@ export const mapStudent = (r: StudentRow): Student => ({
   whatsapp: r.whatsapp ?? undefined,
   email: r.email ?? undefined,
   medicalNotes: r.medical_notes ?? undefined,
+  healthConditions: (r.health_conditions ?? []) as HealthCondition[],
+  healthRestrictions: r.health_restrictions ?? undefined,
   emergencyContactName: r.emergency_contact_name ?? undefined,
   emergencyContactPhone: r.emergency_contact_phone ?? undefined,
   status: r.status,
@@ -257,6 +264,7 @@ export const mapTask = (r: TaskRow): Task => ({
   priority: r.priority,
   done: r.done,
   doneAt: r.done_at ?? undefined,
+  workoutId: r.workout_id ?? undefined,
   createdAt: r.created_at,
 });
 
@@ -356,6 +364,8 @@ export type WorkoutRow = {
   days: WorkoutDay[] | null;
   starts_on: string;
   review_on: string | null;
+  cycle_months: number | null;
+  ended_on: string | null;
   active: boolean;
   created_at: string;
   updated_at: string;
@@ -373,7 +383,47 @@ export const mapWorkout = (r: WorkoutRow): WorkoutProgram => ({
   days: Array.isArray(r.days) ? r.days : [],
   startsOn: r.starts_on,
   reviewOn: r.review_on ?? undefined,
+  cycleMonths: r.cycle_months ?? undefined,
+  endedOn: r.ended_on ?? undefined,
   active: r.active,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
+});
+
+export type AssessmentRow = {
+  id: string;
+  student_id: string;
+  kind: Assessment["kind"];
+  measured_on: string;
+  weight_kg: number | string | null;
+  height_cm: number | string | null;
+  arm_cm: number | string | null;
+  chest_cm: number | string | null;
+  waist_cm: number | string | null;
+  abdomen_cm: number | string | null;
+  thigh_cm: number | string | null;
+  notes: string | null;
+  author_staff_id: string | null;
+  author_name: string | null;
+  created_at: string;
+};
+
+const num = (v: number | string | null) => (v === null || v === "" ? undefined : Number(v));
+
+export const mapAssessment = (r: AssessmentRow): Assessment => ({
+  id: r.id,
+  studentId: r.student_id,
+  kind: r.kind,
+  measuredOn: r.measured_on,
+  weightKg: num(r.weight_kg),
+  heightCm: num(r.height_cm),
+  armCm: num(r.arm_cm),
+  chestCm: num(r.chest_cm),
+  waistCm: num(r.waist_cm),
+  abdomenCm: num(r.abdomen_cm),
+  thighCm: num(r.thigh_cm),
+  notes: r.notes ?? undefined,
+  authorStaffId: r.author_staff_id ?? undefined,
+  authorName: r.author_name ?? undefined,
+  createdAt: r.created_at,
 });

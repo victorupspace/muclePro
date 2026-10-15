@@ -2,12 +2,16 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Dumbbell, Plus } from "lucide-react";
+import { ChevronDown, Dumbbell, History, Plus } from "lucide-react";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "../Toast";
+import { HealthAlert } from "../health/HealthKit";
 import { WorkoutEditorModal } from "./WorkoutEditorModal";
 import { WorkoutView } from "./WorkoutView";
+import { cn } from "@/lib/cn";
 import { EASE } from "@/lib/motion";
+import { formatDateValue, weekdaysLabel } from "@/lib/plataforma/format";
+import { cycleDurationMonths, cycleLabel, exerciseCount } from "@/lib/plataforma/workouts";
 import { useAccountSession } from "@/lib/plataforma/session";
 import { usePlataformaStore } from "@/lib/plataforma/store";
 import type { Student, WorkoutProgram } from "@/lib/plataforma/types";
@@ -24,10 +28,18 @@ export function StudentWorkoutsTab({ student }: { student: Student }) {
   const [editing, setEditing] = useState<WorkoutProgram | undefined>();
   const [copyFrom, setCopyFrom] = useState<WorkoutProgram | undefined>();
   const [deleting, setDeleting] = useState<WorkoutProgram | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const list = workoutsFor(student.id);
   const active = list.filter((w) => w.active);
-  const archived = list.filter((w) => !w.active);
+  const archived = list
+    .filter((w) => !w.active)
+    .sort((a, b) => (b.endedOn ?? b.startsOn).localeCompare(a.endedOn ?? a.startsOn));
+  const byYear = archived.reduce<Map<string, WorkoutProgram[]>>((map, w) => {
+    const year = (w.endedOn ?? w.startsOn).slice(0, 4);
+    map.set(year, [...(map.get(year) ?? []), w]);
+    return map;
+  }, new Map());
 
   function canDeleteWorkout(w: WorkoutProgram) {
     return Boolean(profile?.permissions.canDeleteRecords || (profile?.staffId && w.authorStaffId === profile.staffId));
@@ -80,6 +92,8 @@ export function StudentWorkoutsTab({ student }: { student: Student }) {
         )}
       </div>
 
+      <HealthAlert student={student} />
+
       {list.length === 0 ? (
         <div className="flex flex-col items-center rounded-card border border-dashed border-ink-300 bg-white px-6 py-10 text-center">
           <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-brand/10 text-brand">
@@ -96,10 +110,54 @@ export function StudentWorkoutsTab({ student }: { student: Student }) {
         <>
           {active.map((w) => render(w, true))}
           {archived.length > 0 && (
-            <div className="space-y-3 pt-2">
-              <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-ink-500">Fichas anteriores</p>
-              {archived.map((w) => render(w, false))}
-            </div>
+            <section className="rounded-card border border-ink-200 bg-white">
+              <header className="flex items-center gap-2 border-b border-ink-100 px-4 py-3 md:px-5">
+                <History className="h-4 w-4 text-ink-500" strokeWidth={2.2} />
+                <h2 className="text-[13.5px] font-bold text-ink-900">Histórico de ciclos</h2>
+                <span className="text-[11.5px] text-ink-500">
+                  · {archived.length} ciclo{archived.length === 1 ? "" : "s"} encerrado{archived.length === 1 ? "" : "s"}
+                </span>
+              </header>
+              <div className="divide-y divide-ink-100">
+                {Array.from(byYear.entries()).map(([year, items]) => (
+                  <div key={year} className="px-4 py-3 md:px-5">
+                    <p className="mb-2 text-[10.5px] font-bold uppercase tracking-[0.14em] text-ink-500">{year}</p>
+                    <ol className="relative space-y-2 border-l border-ink-200 pl-4">
+                      {items.map((w) => {
+                        const open = expanded === w.id;
+                        const months = cycleDurationMonths(w);
+                        return (
+                          <li key={w.id} className="relative">
+                            <span className="absolute -left-[21px] top-3 h-2.5 w-2.5 rounded-full border-2 border-white bg-ink-300" />
+                            <button
+                              type="button"
+                              onClick={() => setExpanded(open ? null : w.id)}
+                              aria-expanded={open}
+                              className="flex w-full items-start justify-between gap-3 rounded-btn px-2 py-2 text-left transition-colors hover:bg-ink-50"
+                            >
+                              <span className="min-w-0">
+                                <span className="block text-[13px] font-semibold text-ink-900">{w.title}</span>
+                                <span className="block text-[11.5px] text-ink-500">
+                                  {formatDateValue(w.startsOn)} a {formatDateValue(w.endedOn)} ·{" "}
+                                  {months < 1 ? "menos de 1 mês" : `${Math.round(months)} ${Math.round(months) === 1 ? "mês" : "meses"}`}
+                                  {w.cycleMonths ? ` (previsto ${cycleLabel(w.cycleMonths)})` : ""}
+                                </span>
+                                <span className="block text-[11px] text-ink-400">
+                                  {w.days.map((d) => `${d.name}${weekdaysLabel(d.weekdays) ? ` ${weekdaysLabel(d.weekdays)}` : ""}`).join("  /  ")} · {exerciseCount(w)} exercícios
+                                  {w.authorName ? ` · ${w.authorName}` : ""}
+                                </span>
+                              </span>
+                              <ChevronDown className={cn("mt-1 h-4 w-4 shrink-0 text-ink-400 transition-transform", open && "rotate-180")} strokeWidth={2.2} />
+                            </button>
+                            {open && <div className="mt-2">{render(w, true)}</div>}
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  </div>
+                ))}
+              </div>
+            </section>
           )}
         </>
       )}

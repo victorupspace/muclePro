@@ -2,6 +2,7 @@ import type {
   BillingState,
   BusinessType,
   ChurnReason,
+  HealthCondition,
   LeadLostReason,
   LeadSource,
   LeadStage,
@@ -110,6 +111,30 @@ export const WORKOUT_LEVEL_LABEL: Record<WorkoutLevel, string> = {
   intermediario: "Intermediário",
   avancado: "Avançado",
 };
+
+export const HEALTH_CONDITION_LABEL: Record<HealthCondition, string> = {
+  coluna: "Problema na coluna",
+  joelho: "Lesão no joelho",
+  ombro: "Lesão no ombro",
+  hipertensao: "Hipertensão",
+  diabetes: "Diabetes",
+  cardiaco: "Problema cardíaco",
+  respiratorio: "Asma ou problema respiratório",
+  gestante: "Gestante",
+  cirurgia_recente: "Cirurgia recente",
+  obesidade: "Obesidade",
+  outro: "Outra condição",
+};
+
+export const WEEKDAY_SHORT = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+export const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
+export function weekdaysLabel(days?: number[]) {
+  if (!days || days.length === 0) return "";
+  return WEEKDAY_ORDER.filter((d) => days.includes(d))
+    .map((d) => WEEKDAY_SHORT[d])
+    .join(" · ");
+}
 
 export const STUDENT_STATUS_LABEL: Record<StudentStatus, string> = {
   ativo: "Ativo",

@@ -17,11 +17,15 @@ import { buildNextBestActions, type NextBestAction } from "./next-best-action";
 import { useAccountSession } from "./session";
 import type {
   AccountSettings,
+  Assessment,
+  AssessmentKind,
+  AssessmentMeasures,
   ChurnReason,
   ChurnRisk,
   CompanyProfilePatch,
   MonthForecast,
   DashboardMetrics,
+  HealthCondition,
   Lead,
   LeadEvent,
   LeadLostReason,
@@ -53,6 +57,7 @@ import type {
 
 import {
   mapActivity,
+  mapAssessment,
   mapLead,
   mapLeadEvent,
   mapNotification,
@@ -65,6 +70,7 @@ import {
   mapUnit,
   staffAccessState,
   type ActivityRow,
+  type AssessmentRow,
   type AnnouncementRow,
   type LeadEventRow,
   type LeadRow,
@@ -146,8 +152,20 @@ export type NewStudent = {
   status?: StudentStatus;
   churnReason?: ChurnReason;
   churnNotes?: string;
+  healthConditions?: HealthCondition[];
+  healthRestrictions?: string;
 };
 export type StudentPatch = Partial<NewStudent>;
+
+export type StudentHealth = { conditions: HealthCondition[]; restrictions: string; medicalNotes: string };
+
+export type NewAssessment = AssessmentMeasures & {
+  studentId: string;
+  kind: AssessmentKind;
+  measuredOn?: string;
+  notes?: string;
+};
+export type AssessmentPatch = Partial<Omit<NewAssessment, "studentId">>;
 
 export type NewLead = {
   fullName: string;
@@ -172,6 +190,7 @@ export type NewWorkout = {
   days: WorkoutDay[];
   startsOn?: string;
   reviewOn?: string;
+  cycleMonths?: number;
   active?: boolean;
 };
 export type WorkoutPatch = Partial<Omit<NewWorkout, "studentId">>;
@@ -248,6 +267,7 @@ type Ctx = {
   notifications: Notification[];
   leads: Lead[];
   workouts: WorkoutProgram[];
+  assessments: Assessment[];
   subscription: Subscription;
   metrics: DashboardMetrics;
   recommendedActions: NextBestAction[];
@@ -263,6 +283,7 @@ type Ctx = {
   paymentsFor: (studentId: string) => Payment[];
   activitiesFor: (studentId: string) => StudentActivity[];
   workoutsFor: (studentId: string) => WorkoutProgram[];
+  assessmentsFor: (studentId: string) => Assessment[];
 
   updateCompanyProfile: (patch: CompanyProfilePatch) => Promise<boolean>;
   updateSettings: (patch: SettingsPatch) => Promise<boolean>;
@@ -296,6 +317,11 @@ type Ctx = {
   removeLead: (id: string) => Promise<boolean>;
   loadLeadEvents: (leadId: string) => Promise<LeadEvent[]>;
   addLeadEvent: (leadId: string, kind: "nota" | "contato", body: string) => Promise<LeadEvent | null>;
+
+  updateStudentHealth: (studentId: string, health: StudentHealth) => Promise<boolean>;
+  addAssessment: (input: NewAssessment) => Promise<Assessment | null>;
+  updateAssessment: (id: string, patch: AssessmentPatch) => Promise<Assessment | null>;
+  removeAssessment: (id: string) => Promise<boolean>;
 
   addWorkout: (input: NewWorkout) => Promise<WorkoutProgram | null>;
   updateWorkout: (id: string, patch: WorkoutPatch) => Promise<WorkoutProgram | null>;
@@ -356,6 +382,7 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<AccountSettings>(DEFAULT_SETTINGS);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [workouts, setWorkouts] = useState<WorkoutProgram[]>([]);
+  const [assessments, setAssessments] = useState<Assessment[]>([]);
 
   const fail = useCallback((err: unknown, fallback: string) => {
     const message = describeError(err, fallback);
@@ -373,7 +400,7 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setError(null);
 
-    const [unitsRes, staffRes, plansRes, studentsRes, paymentsRes, tasksRes, activitiesRes, settingsRes, leadsRes, workoutsRes] =
+    const [unitsRes, staffRes, plansRes, studentsRes, paymentsRes, tasksRes, activitiesRes, settingsRes, leadsRes, workoutsRes, assessmentsRes] =
       await Promise.all([
         supabase.from("units").select("*").order("created_at", { ascending: true }),
         supabase.from("staff").select("*").order("full_name", { ascending: true }),
@@ -391,9 +418,10 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
           .maybeSingle(),
         supabase.from("leads").select("*").order("stage_changed_at", { ascending: false }),
         supabase.from("workout_programs").select("*").order("created_at", { ascending: false }),
+        supabase.from("student_assessments").select("*").order("measured_on", { ascending: false }),
       ]);
 
-    const firstError = [unitsRes, staffRes, plansRes, studentsRes, paymentsRes, tasksRes, activitiesRes, leadsRes, workoutsRes].find(
+    const firstError = [unitsRes, staffRes, plansRes, studentsRes, paymentsRes, tasksRes, activitiesRes, leadsRes, workoutsRes, assessmentsRes].find(
       (r) => r.error,
     )?.error;
 
@@ -413,6 +441,7 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
     setSettings(mapSettings((settingsRes.data ?? null) as SettingsRow | null));
     setLeads(((leadsRes.data ?? []) as LeadRow[]).map(mapLead));
     setWorkouts(((workoutsRes.data ?? []) as WorkoutRow[]).map(mapWorkout));
+    setAssessments(((assessmentsRes.data ?? []) as AssessmentRow[]).map(mapAssessment));
     setLoading(false);
   }, [accountId, authorName]);
 
@@ -470,6 +499,14 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
   const activitiesFor = useCallback(
     (studentId: string) => activities.filter((a) => a.studentId === studentId),
     [activities],
+  );
+
+  const assessmentsFor = useCallback(
+    (studentId: string) =>
+      assessments
+        .filter((a) => a.studentId === studentId)
+        .sort((a, b) => b.measuredOn.localeCompare(a.measuredOn) || b.createdAt.localeCompare(a.createdAt)),
+    [assessments],
   );
 
   const workoutsFor = useCallback(
@@ -1104,6 +1141,12 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
 
   // ───────────── fichas de treino ─────────────
 
+  // O lembrete de renovação é criado/atualizado pelo banco junto com a ficha.
+  const reloadTasks = useCallback(async () => {
+    const { data } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
+    if (data) setTasks((data as TaskRow[]).map(mapTask));
+  }, []);
+
   const workoutRowFrom = (input: WorkoutPatch) => {
     const row: Record<string, unknown> = {};
     if (input.title !== undefined) row.title = input.title.trim();
@@ -1113,6 +1156,7 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
     if (input.days !== undefined) row.days = input.days;
     if (input.startsOn !== undefined) row.starts_on = input.startsOn || todayValue();
     if (input.reviewOn !== undefined) row.review_on = nullable(input.reviewOn);
+    if (input.cycleMonths !== undefined) row.cycle_months = input.cycleMonths || null;
     if (input.active !== undefined) row.active = input.active;
     return row;
   };
@@ -1131,9 +1175,10 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       }
       const workout = mapWorkout(data as WorkoutRow);
       setWorkouts((prev) => [workout, ...prev]);
+      void reloadTasks();
       return workout;
     },
-    [accountId, fail],
+    [accountId, fail, reloadTasks],
   );
 
   const updateWorkout = useCallback(
@@ -1150,9 +1195,10 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       }
       const workout = mapWorkout(data as WorkoutRow);
       setWorkouts((prev) => prev.map((w) => (w.id === id ? workout : w)));
+      void reloadTasks();
       return workout;
     },
-    [fail],
+    [fail, reloadTasks],
   );
 
   const removeWorkout = useCallback(
@@ -1163,6 +1209,108 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
         return false;
       }
       setWorkouts((prev) => prev.filter((w) => w.id !== id));
+      return true;
+    },
+    [fail],
+  );
+
+  // ───────────── saúde e avaliações ─────────────
+
+  const updateStudentHealth = useCallback(
+    async (studentId: string, health: StudentHealth) => {
+      const { error: rpcError } = await supabase.rpc("update_student_health", {
+        p_student: studentId,
+        p_conditions: health.conditions,
+        p_restrictions: health.restrictions,
+        p_medical_notes: health.medicalNotes,
+      });
+      if (rpcError) {
+        fail(rpcError, "Não foi possível salvar os dados de saúde.");
+        return false;
+      }
+      setStudents((prev) =>
+        prev.map((s) =>
+          s.id === studentId
+            ? {
+                ...s,
+                healthConditions: health.conditions,
+                healthRestrictions: health.restrictions.trim() || undefined,
+                medicalNotes: health.medicalNotes.trim() || undefined,
+              }
+            : s,
+        ),
+      );
+      return true;
+    },
+    [fail],
+  );
+
+  const assessmentRowFrom = (input: AssessmentPatch) => {
+    const row: Record<string, unknown> = {};
+    if (input.kind !== undefined) row.kind = input.kind;
+    if (input.measuredOn !== undefined) row.measured_on = input.measuredOn || todayValue();
+    const measures: [keyof AssessmentMeasures, string][] = [
+      ["weightKg", "weight_kg"],
+      ["heightCm", "height_cm"],
+      ["armCm", "arm_cm"],
+      ["chestCm", "chest_cm"],
+      ["waistCm", "waist_cm"],
+      ["abdomenCm", "abdomen_cm"],
+      ["thighCm", "thigh_cm"],
+    ];
+    for (const [key, column] of measures) {
+      if (key in input) row[column] = input[key] ?? null;
+    }
+    if (input.notes !== undefined) row.notes = nullable(input.notes);
+    return row;
+  };
+
+  const addAssessment = useCallback(
+    async (input: NewAssessment) => {
+      if (!accountId) return null;
+      const { data, error: insertError } = await supabase
+        .from("student_assessments")
+        .insert({ account_id: accountId, student_id: input.studentId, ...assessmentRowFrom(input) })
+        .select("*")
+        .single();
+      if (insertError || !data) {
+        fail(insertError, "Não foi possível salvar a avaliação.");
+        return null;
+      }
+      const assessment = mapAssessment(data as AssessmentRow);
+      setAssessments((prev) => [assessment, ...prev]);
+      return assessment;
+    },
+    [accountId, fail],
+  );
+
+  const updateAssessment = useCallback(
+    async (id: string, patch: AssessmentPatch) => {
+      const { data, error: updateError } = await supabase
+        .from("student_assessments")
+        .update(assessmentRowFrom(patch))
+        .eq("id", id)
+        .select("*")
+        .single();
+      if (updateError || !data) {
+        fail(updateError, "Não foi possível atualizar a avaliação.");
+        return null;
+      }
+      const assessment = mapAssessment(data as AssessmentRow);
+      setAssessments((prev) => prev.map((a) => (a.id === id ? assessment : a)));
+      return assessment;
+    },
+    [fail],
+  );
+
+  const removeAssessment = useCallback(
+    async (id: string) => {
+      const { error: deleteError } = await supabase.from("student_assessments").delete().eq("id", id);
+      if (deleteError) {
+        fail(deleteError, "Não foi possível excluir a avaliação.");
+        return false;
+      }
+      setAssessments((prev) => prev.filter((a) => a.id !== id));
       return true;
     },
     [fail],
@@ -1212,6 +1360,8 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
     if (input.status !== undefined) row.status = input.status;
     if (input.churnReason !== undefined) row.churn_reason = nullable(input.churnReason);
     if (input.churnNotes !== undefined) row.churn_notes = nullable(input.churnNotes);
+    if (input.healthConditions !== undefined) row.health_conditions = input.healthConditions;
+    if (input.healthRestrictions !== undefined) row.health_restrictions = nullable(input.healthRestrictions);
     return row;
   };
 
@@ -1440,6 +1590,7 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       notifications,
       leads,
       workouts,
+      assessments,
       subscription,
       metrics,
       recommendedActions,
@@ -1454,6 +1605,7 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       paymentsFor,
       activitiesFor,
       workoutsFor,
+      assessmentsFor,
       updateCompanyProfile,
       updateSettings,
       addUnit,
@@ -1480,6 +1632,10 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       removeLead,
       loadLeadEvents,
       addLeadEvent,
+      updateStudentHealth,
+      addAssessment,
+      updateAssessment,
+      removeAssessment,
       addWorkout,
       updateWorkout,
       removeWorkout,
@@ -1508,6 +1664,7 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       notifications,
       leads,
       workouts,
+      assessments,
       subscription,
       metrics,
       recommendedActions,
@@ -1522,6 +1679,7 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       paymentsFor,
       activitiesFor,
       workoutsFor,
+      assessmentsFor,
       updateCompanyProfile,
       updateSettings,
       addUnit,
@@ -1548,6 +1706,10 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       removeLead,
       loadLeadEvents,
       addLeadEvent,
+      updateStudentHealth,
+      addAssessment,
+      updateAssessment,
+      removeAssessment,
       addWorkout,
       updateWorkout,
       removeWorkout,

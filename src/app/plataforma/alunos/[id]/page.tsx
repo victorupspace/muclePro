@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
-import { Activity, CreditCard, Dumbbell, LayoutDashboard, ShieldAlert } from "lucide-react";
+import { Activity, CreditCard, Dumbbell, HeartPulse, LayoutDashboard, ShieldAlert } from "lucide-react";
 import { AddNoteModal } from "@/components/plataforma/AddNoteModal";
 import { AddTaskModal } from "@/components/plataforma/AddTaskModal";
 import { AddChargeModal, AssignPlanModal, RegisterPaymentModal } from "@/components/plataforma/PaymentModals";
@@ -12,6 +12,7 @@ import { StudentFormModal } from "@/components/plataforma/StudentFormModal";
 import { StudentHeader } from "@/components/plataforma/StudentHeader";
 import { StudentPagamentosTab } from "@/components/plataforma/StudentPagamentosTab";
 import { StudentResumoTab } from "@/components/plataforma/StudentResumoTab";
+import { StudentHealthTab } from "@/components/plataforma/health/StudentHealthTab";
 import { StudentWorkoutsTab } from "@/components/plataforma/workouts/StudentWorkoutsTab";
 import { Tabs } from "@/components/plataforma/Tabs";
 import { useToast } from "@/components/plataforma/Toast";
@@ -20,7 +21,7 @@ import { useAccountSession } from "@/lib/plataforma/session";
 import { usePlataformaStore } from "@/lib/plataforma/store";
 import type { Payment } from "@/lib/plataforma/types";
 
-type TabValue = "resumo" | "treinos" | "pagamentos" | "atividades";
+type TabValue = "resumo" | "saude" | "treinos" | "pagamentos" | "atividades";
 
 export default function AlunoFichaPage() {
   const params = useParams<{ id: string }>();
@@ -109,6 +110,11 @@ export default function AlunoFichaPage() {
   const tabs: { value: TabValue; label: string; count?: number; icon: React.ReactNode }[] = [
     { value: "resumo", label: "Resumo", icon: <LayoutDashboard className="h-3.5 w-3.5" strokeWidth={2.2} /> },
     {
+      value: "saude",
+      label: "Saúde e medidas",
+      icon: <HeartPulse className="h-3.5 w-3.5" strokeWidth={2.2} />,
+    },
+    {
       value: "treinos",
       label: "Treinos",
       count: workoutsFor(studentId).filter((w) => w.active).length,
@@ -163,6 +169,7 @@ export default function AlunoFichaPage() {
             canCharge={Boolean(profile?.permissions.canSendPaymentLinks)}
           />
         )}
+        {tab === "saude" && <StudentHealthTab student={student} />}
         {tab === "treinos" && <StudentWorkoutsTab student={student} />}
         {tab === "pagamentos" && (
           <StudentPagamentosTab

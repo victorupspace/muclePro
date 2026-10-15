@@ -1,5 +1,5 @@
 import { MARK_STROKES, MARK_VIEWBOX, markPathToPdfOps } from "@/lib/brand/mark";
-import { WORKOUT_LEVEL_LABEL, daysFromToday, firstName, formatDateValue } from "./format";
+import { WORKOUT_LEVEL_LABEL, daysFromToday, firstName, formatDateValue, parseDateValue, weekdaysLabel } from "./format";
 import type { Student, WorkoutDay, WorkoutExercise, WorkoutProgram } from "./types";
 
 // Fichas de treino: biblioteca para autocompletar, situação da ficha e as
@@ -27,8 +27,13 @@ export function emptyExercise(): WorkoutExercise {
 }
 
 export function emptyDay(index: number): WorkoutDay {
-  return { name: DAY_NAMES[index] ?? String(index + 1), focus: "", exercises: [emptyExercise()] };
+  return { name: DAY_NAMES[index] ?? String(index + 1), focus: "", weekdays: [], exercises: [emptyExercise()] };
 }
+
+// Recorrência do ciclo: em quanto tempo os exercícios e a rotina são trocados.
+export const CYCLE_OPTIONS = [1, 2, 3, 4, 6, 12];
+export const DEFAULT_CYCLE_MONTHS = 6;
+export const cycleLabel = (months: number) => (months === 1 ? "1 mês" : months === 12 ? "1 ano" : `${months} meses`);
 
 // Remove linhas em branco antes de salvar.
 export function cleanDays(days: WorkoutDay[]): WorkoutDay[] {
@@ -36,6 +41,7 @@ export function cleanDays(days: WorkoutDay[]): WorkoutDay[] {
     .map((d) => ({
       name: d.name.trim() || "Treino",
       focus: d.focus?.trim() || undefined,
+      weekdays: d.weekdays && d.weekdays.length > 0 ? [...d.weekdays].sort((a, b) => a - b) : undefined,
       exercises: d.exercises
         .filter((e) => e.name.trim())
         .map((e) => ({
@@ -50,19 +56,42 @@ export function cleanDays(days: WorkoutDay[]): WorkoutDay[] {
     .filter((d) => d.exercises.length > 0);
 }
 
-export type WorkoutStatus = "ativa" | "reavaliar" | "arquivada";
+export type WorkoutStatus = "ativa" | "vencendo" | "reavaliar" | "arquivada";
+
+export const EXPIRING_DAYS = 14;
 
 export function workoutStatus(w: WorkoutProgram): WorkoutStatus {
   if (!w.active) return "arquivada";
-  if (w.reviewOn && daysFromToday(w.reviewOn) < 0) return "reavaliar";
+  if (w.reviewOn) {
+    const days = daysFromToday(w.reviewOn);
+    if (days < 0) return "reavaliar";
+    if (days <= EXPIRING_DAYS) return "vencendo";
+  }
   return "ativa";
 }
 
 export const WORKOUT_STATUS_LABEL: Record<WorkoutStatus, string> = {
   ativa: "Em uso",
-  reavaliar: "Reavaliar",
-  arquivada: "Arquivada",
+  vencendo: "Vence em breve",
+  reavaliar: "Ciclo vencido",
+  arquivada: "Encerrada",
 };
+
+// Quanto do ciclo já passou (0 a 1).
+export function cycleProgress(w: WorkoutProgram) {
+  if (!w.reviewOn) return null;
+  const start = parseDateValue(w.startsOn).getTime();
+  const end = parseDateValue(w.reviewOn).getTime();
+  if (end <= start) return 1;
+  return Math.min(1, Math.max(0, (Date.now() - start) / (end - start)));
+}
+
+// Duração real de um ciclo encerrado (ou até hoje), em meses.
+export function cycleDurationMonths(w: WorkoutProgram) {
+  const start = parseDateValue(w.startsOn).getTime();
+  const end = w.endedOn ? parseDateValue(w.endedOn).getTime() : Date.now();
+  return Math.max(0, (end - start) / (30.44 * 86_400_000));
+}
 
 export function exerciseCount(w: WorkoutProgram) {
   return w.days.reduce((sum, d) => sum + d.exercises.length, 0);
@@ -79,14 +108,15 @@ export function workoutWhatsappText(w: WorkoutProgram, student: Student, company
   const lines = [`Oi ${firstName(student.fullName)}! Sua ficha de treino da ${companyName}:`, "", `*${w.title}*`];
   if (w.goal) lines.push(`Objetivo: ${w.goal}`);
   for (const day of w.days) {
-    lines.push("", `*Treino ${day.name}${day.focus ? ` · ${day.focus}` : ""}*`);
+    const when = weekdaysLabel(day.weekdays);
+    lines.push("", `*Treino ${day.name}${day.focus ? ` · ${day.focus}` : ""}*${when ? ` (${when})` : ""}`);
     day.exercises.forEach((e, i) => {
       const p = prescription(e);
       lines.push(`${i + 1}. ${e.name}${p ? ` · ${p}` : ""}${e.notes ? ` (${e.notes})` : ""}`);
     });
   }
   if (w.notes) lines.push("", `Obs.: ${w.notes}`);
-  if (w.reviewOn) lines.push("", `Reavaliação em ${formatDateValue(w.reviewOn)}.`);
+  if (w.reviewOn) lines.push("", `Esta ficha vale até ${formatDateValue(w.reviewOn)}. Depois a gente reavalia e troca os treinos.`);
   lines.push("", "Bom treino!");
   return lines.join("\n");
 }
@@ -149,7 +179,7 @@ export async function downloadWorkoutPdf(w: WorkoutProgram, student: Student, co
     w.title,
     w.level ? WORKOUT_LEVEL_LABEL[w.level] : null,
     `Início ${formatDateValue(w.startsOn)}`,
-    w.reviewOn ? `Reavaliação ${formatDateValue(w.reviewOn)}` : null,
+    w.reviewOn ? `Vale até ${formatDateValue(w.reviewOn)}${w.cycleMonths ? ` (ciclo de ${cycleLabel(w.cycleMonths)})` : ""}` : null,
     w.authorName ? `Professor: ${w.authorName}` : null,
   ].filter(Boolean);
   doc.text(meta.join("  ·  "), margin, y);
@@ -179,6 +209,13 @@ export async function downloadWorkoutPdf(w: WorkoutProgram, student: Student, co
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
     doc.text(`Treino ${day.name}${day.focus ? `  ·  ${day.focus}` : ""}`, margin + 3, y + 0.8);
+    const when = weekdaysLabel(day.weekdays);
+    if (when) {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(...MUTED);
+      doc.text(when, pageW - margin - 3, y + 0.8, { align: "right" });
+    }
     y += 9;
 
     doc.setFontSize(7.5);
@@ -274,6 +311,7 @@ export const WORKOUT_TEMPLATES: { id: string; label: string; title: string; goal
       {
         name: "A",
         focus: "Corpo inteiro",
+        weekdays: [1, 3, 5],
         exercises: [
           ex("Leg press 45°", "3", "15"),
           ex("Supino reto com barra", "3", "12"),
@@ -295,6 +333,7 @@ export const WORKOUT_TEMPLATES: { id: string; label: string; title: string; goal
       {
         name: "A",
         focus: "Peito, ombros e tríceps",
+        weekdays: [1, 4],
         exercises: [
           ex("Supino reto com barra", "4", "10", "90s"),
           ex("Supino inclinado com halteres", "3", "10", "90s"),
@@ -307,6 +346,7 @@ export const WORKOUT_TEMPLATES: { id: string; label: string; title: string; goal
       {
         name: "B",
         focus: "Costas e bíceps",
+        weekdays: [2, 5],
         exercises: [
           ex("Puxada frontal", "4", "10", "90s"),
           ex("Remada curvada", "3", "10", "90s"),
@@ -319,6 +359,7 @@ export const WORKOUT_TEMPLATES: { id: string; label: string; title: string; goal
       {
         name: "C",
         focus: "Pernas e core",
+        weekdays: [3, 6],
         exercises: [
           ex("Agachamento livre", "4", "10", "120s"),
           ex("Leg press 45°", "3", "12", "90s"),

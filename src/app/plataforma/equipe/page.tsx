@@ -89,7 +89,10 @@ export default function EquipePage() {
                 <RoleBadge role={m.role} label={m.roleLabel} />
               </span>
             </div>
-            <p className="truncate text-[11.5px] text-ink-500">{m.email ?? m.phone ?? "Sem contato"}</p>
+            <p className="truncate text-[11.5px] text-ink-500">
+              {!m.active && <span className="mr-1.5 font-bold uppercase tracking-[0.08em] text-ink-400 2xl:hidden">Inativo ·</span>}
+              {m.email ?? m.phone ?? "Sem contato"}
+            </p>
           </div>
         </div>
       ),
@@ -139,6 +142,7 @@ export default function EquipePage() {
     {
       key: "status",
       header: "Status",
+      className: "hidden 2xl:table-cell",
       hideOnMobile: true,
       render: (m) => <ActiveBadge active={m.active} />,
     },

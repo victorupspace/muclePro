@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Archive, ArrowDown, ArrowUp, Copy, Plus, Trash2, X } from "lucide-react";
-import { Field, ModalFooter, inputClass, selectClass, textareaClass } from "../FormKit";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Archive, ArrowDown, ArrowUp, Copy, Plus, Send, Trash2, X } from "lucide-react";
+import { Field, inputClass, selectClass, textareaClass } from "../FormKit";
 import { Modal } from "../Modal";
 import { HealthAlert } from "../health/HealthKit";
 import { useToast } from "../Toast";
@@ -69,10 +69,14 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
     () => students.filter((s) => s.status === "ativo").sort((a, b) => a.fullName.localeCompare(b.fullName)),
     [students],
   );
+  // Ficha em uso que será arquivada quando esta for liberada.
   const currentActive = useMemo(
-    () => (editing ? [] : workouts.filter((w) => w.studentId === student && w.active)),
-    [editing, workouts, student],
+    () => workouts.filter((w) => w.studentId === student && w.active && w.id !== workout?.id),
+    [workouts, student, workout?.id],
   );
+  // Ficha nova ou rascunho: dá para salvar para revisar ou liberar ao aluno.
+  const isDraftFlow = !workout || (!workout.active && !workout.publishedAt);
+  const releaseRef = useRef(false);
   const studentObj = students.find((s) => s.id === student);
   const studentName = studentObj?.fullName;
 
@@ -161,25 +165,32 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
       reviewOn,
       cycleMonths: cycleMonths || 0,
     };
+    // Liberar = ativar; o banco arquiva a ficha em uso e registra a liberação.
+    const release = isDraftFlow && releaseRef.current;
     let saved: WorkoutProgram | null;
     if (workout) {
-      saved = await updateWorkout(workout.id, { ...payload, level: level || ("" as WorkoutLevel) });
+      saved = await updateWorkout(workout.id, {
+        ...payload,
+        level: level || ("" as WorkoutLevel),
+        ...(release ? { active: true } : {}),
+      });
     } else {
-      // O banco arquiva a ficha em uso ao gravar a nova.
-      saved = await addWorkout({ studentId: student, ...payload, active: true });
+      saved = await addWorkout({ studentId: student, ...payload, active: release });
     }
     setSubmitting(false);
     if (saved) {
-      push({
-        tone: "success",
-        title: workout ? "Ficha atualizada" : "Ficha criada",
-        description:
-          studentName && !workout
-            ? currentActive.length > 0
-              ? `A ficha anterior foi para o histórico. ${firstName(studentName)} já pode receber a nova pelo WhatsApp ou em PDF.`
-              : `${firstName(studentName)} já pode receber pelo WhatsApp ou em PDF.`
-            : undefined,
-      });
+      const name = studentName ? firstName(studentName) : "O aluno";
+      push(
+        release
+          ? {
+              tone: "success",
+              title: "Ficha liberada ao aluno",
+              description: `${currentActive.length > 0 ? "A ficha anterior foi para o histórico. " : ""}${name} já vê o novo treino na área do aluno.`,
+            }
+          : isDraftFlow
+            ? { tone: "success", title: "Rascunho salvo", description: `Revise e libere quando estiver pronto. ${name} ainda não vê esta ficha.` }
+            : { tone: "success", title: "Ficha atualizada", description: workout?.active ? `${name} já vê as mudanças.` : undefined },
+      );
       onClose();
     }
   }
@@ -192,13 +203,53 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
       title={editing ? "Editar ficha de treino" : "Nova ficha de treino"}
       description={studentName && (studentId || editing) ? studentName : "Monte os treinos do aluno. Linhas sem exercício são ignoradas."}
       footer={
-        <ModalFooter
-          onCancel={onClose}
-          formId="workout-form"
-          submitting={submitting}
-          submitLabel={editing ? "Salvar ficha" : "Criar ficha"}
-          extra={error ? <p role="alert" className="text-[12px] font-semibold text-danger-600">{error}</p> : undefined}
-        />
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+          {error && (
+            <p role="alert" className="text-[12px] font-semibold text-danger-600 sm:mr-auto">
+              {error}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            className="inline-flex h-11 w-full items-center justify-center rounded-btn border border-ink-200 px-4 text-[13px] font-semibold text-ink-700 transition-colors hover:border-ink-400 hover:bg-ink-50 sm:h-10 sm:w-auto"
+          >
+            Cancelar
+          </button>
+          {isDraftFlow ? (
+            <>
+              <button
+                type="submit"
+                form="workout-form"
+                onClick={() => (releaseRef.current = false)}
+                disabled={submitting}
+                className="inline-flex h-11 w-full items-center justify-center rounded-btn border border-brand/30 bg-brand/[0.05] px-4 text-[13px] font-semibold text-brand transition-colors hover:bg-brand/10 disabled:opacity-60 sm:h-10 sm:w-auto"
+              >
+                {submitting && !releaseRef.current ? "Salvando..." : "Salvar para revisar"}
+              </button>
+              <button
+                type="submit"
+                form="workout-form"
+                onClick={() => (releaseRef.current = true)}
+                disabled={submitting}
+                className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-btn bg-brand px-4 text-[13px] font-semibold text-white transition-colors hover:bg-brand-hover disabled:opacity-60 sm:h-10 sm:w-auto"
+              >
+                <Send className="h-3.5 w-3.5" strokeWidth={2.4} />
+                {submitting && releaseRef.current ? "Liberando..." : "Salvar e liberar ao aluno"}
+              </button>
+            </>
+          ) : (
+            <button
+              type="submit"
+              form="workout-form"
+              disabled={submitting}
+              className="inline-flex h-11 w-full items-center justify-center rounded-btn bg-brand px-4 text-[13px] font-semibold text-white transition-colors hover:bg-brand-hover disabled:opacity-60 sm:h-10 sm:w-auto"
+            >
+              {submitting ? "Salvando..." : "Salvar ficha"}
+            </button>
+          )}
+        </div>
       }
     >
       <form id="workout-form" onSubmit={handleSubmit} className="space-y-4">
@@ -421,11 +472,14 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className={textareaClass} placeholder="Aquecimento, frequência semanal, cuidados com lesões…" />
         </Field>
 
-        {!editing && currentActive.length > 0 && (
+        {isDraftFlow && (
           <p className="flex items-start gap-2 rounded-btn border border-ink-200 bg-ink-50/60 px-3 py-2.5 text-[12.5px] leading-[1.5] text-ink-700">
             <Archive className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-500" strokeWidth={2.2} />
             <span>
-              Ao criar esta ficha, a atual ({currentActive.map((w) => `"${w.title}"`).join(", ")}) é arquivada e vai para o histórico de ciclos.
+              &quot;Salvar para revisar&quot; guarda um rascunho que o aluno ainda não vê.
+              {currentActive.length > 0
+                ? ` Ao liberar, a ficha atual (${currentActive.map((w) => `"${w.title}"`).join(", ")}) é arquivada e vai para o histórico de ciclos.`
+                : " Ao liberar, a ficha aparece na área do aluno."}
             </span>
           </p>
         )}

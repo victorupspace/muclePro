@@ -162,6 +162,11 @@ export type Student = {
   medicalNotes?: string;
   healthConditions: HealthCondition[];
   healthRestrictions?: string;
+  // Área do aluno no celular.
+  hasAppLogin: boolean;
+  appInvitedAt?: string;
+  appConnectedAt?: string;
+  appLastSeenAt?: string;
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   status: StudentStatus;
@@ -375,9 +380,26 @@ export type WorkoutProgram = {
   reviewOn?: string;
   cycleMonths?: number;
   endedOn?: string;
+  // Rascunho = nunca liberada ao aluno.
+  publishedAt?: string;
+  studentSeenAt?: string;
   active: boolean;
   createdAt: string;
   updatedAt: string;
+};
+
+// Treino feito pelo aluno (área do aluno).
+export type WorkoutLogExercise = { name: string; done: boolean; load?: string };
+
+export type WorkoutLog = {
+  id: string;
+  studentId: string;
+  workoutId: string;
+  dayName: string;
+  performedOn: string;
+  exercises: WorkoutLogExercise[];
+  comment?: string;
+  finishedAt?: string;
 };
 
 // ───────────────────────────── avaliação física ────────────────────────────

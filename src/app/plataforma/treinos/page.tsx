@@ -20,7 +20,8 @@ import { cycleLabel, downloadWorkoutPdf, exerciseCount, workoutStatus } from "@/
 type View = "fichas" | "sem_ficha";
 
 const STATUS_OPTIONS = [
-  { value: "uso", label: "Em uso" },
+  { value: "uso", label: "Em uso e rascunhos" },
+  { value: "rascunho", label: "Rascunhos (a revisar)" },
   { value: "vencendo", label: "Vencem em breve" },
   { value: "reavaliar", label: "Ciclo vencido" },
   { value: "arquivada", label: "Encerradas (histórico)" },
@@ -65,6 +66,7 @@ export default function TreinosPage() {
       .filter(({ workout, student }) => {
         const st = workoutStatus(workout);
         if (status === "uso" && st === "arquivada") return false;
+        if (status === "rascunho" && st !== "rascunho") return false;
         if (status === "reavaliar" && st !== "reavaliar") return false;
         if (status === "vencendo" && st !== "vencendo") return false;
         if (status === "arquivada" && st !== "arquivada") return false;
@@ -73,7 +75,7 @@ export default function TreinosPage() {
         return student.fullName.toLowerCase().includes(q) || workout.title.toLowerCase().includes(q);
       })
       .sort((a, b) => {
-        const RANK = { reavaliar: 0, vencendo: 1, ativa: 2, arquivada: 3 } as const;
+        const RANK = { rascunho: 0, reavaliar: 1, vencendo: 2, ativa: 3, arquivada: 4 } as const;
         const rank = (w: WorkoutProgram) => RANK[workoutStatus(w)];
         return rank(a.workout) - rank(b.workout) || a.student.fullName.localeCompare(b.student.fullName);
       });

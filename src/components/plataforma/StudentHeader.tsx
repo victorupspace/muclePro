@@ -14,10 +14,12 @@ import {
   MessageCircle,
   Pencil,
   RefreshCcw,
+  Smartphone,
   StickyNote,
 } from "lucide-react";
 import { BillingBadge, RiskBadge, StudentStatusBadge } from "./Badges";
 import { ChurnReasonModal } from "./ChurnReasonModal";
+import { StudentAppDialog, studentAppState } from "./StudentAppDialog";
 import { cn } from "@/lib/cn";
 import {
   CHURN_REASON_LABEL,
@@ -65,6 +67,7 @@ export function StudentHeader({
   const { updateStudent, riskFor } = usePlataformaStore();
   const risk = riskFor(student.id);
   const [churnOpen, setChurnOpen] = useState(false);
+  const [appOpen, setAppOpen] = useState(false);
   const { profile } = useAccountSession();
   const canEdit = Boolean(profile?.permissions.canRegisterStudents);
   const canCharge_ = Boolean(profile?.permissions.canSendPaymentLinks);
@@ -116,6 +119,29 @@ export function StudentHeader({
     ...(canEdit ? [{ label: "Editar", onClick: onEdit, icon: <Pencil className="h-3.5 w-3.5" strokeWidth={2.2} /> }] : []),
     { label: "Tarefa", onClick: onAddTask, icon: <ListTodo className="h-3.5 w-3.5" strokeWidth={2.2} /> },
     { label: "Nota", onClick: onAddNote, icon: <StickyNote className="h-3.5 w-3.5" strokeWidth={2.2} /> },
+    ...(canEdit || profile?.permissions.canCreateWorkouts
+      ? [
+          {
+            label: "App",
+            onClick: () => setAppOpen(true),
+            icon: (
+              <span className="relative inline-flex">
+                <Smartphone className="h-3.5 w-3.5" strokeWidth={2.2} />
+                <span
+                  className={cn(
+                    "absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full ring-2 ring-white",
+                    studentAppState(student) === "conectado"
+                      ? "bg-success-500"
+                      : studentAppState(student) === "convite_enviado"
+                        ? "bg-warning-500"
+                        : "bg-ink-300",
+                  )}
+                />
+              </span>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -325,6 +351,7 @@ export function StudentHeader({
         </div>
       </div>
       <ChurnReasonModal open={churnOpen} onClose={() => setChurnOpen(false)} student={student} />
+      <StudentAppDialog open={appOpen} onClose={() => setAppOpen(false)} student={student} />
     </>
   );
 }

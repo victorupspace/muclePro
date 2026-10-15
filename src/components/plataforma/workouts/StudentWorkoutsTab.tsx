@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ChevronDown, Dumbbell, History, Plus } from "lucide-react";
+import { CalendarCheck, ChevronDown, Dumbbell, History, Plus } from "lucide-react";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { useToast } from "../Toast";
 import { HealthAlert } from "../health/HealthKit";
@@ -14,11 +14,11 @@ import { formatDateValue, weekdaysLabel } from "@/lib/plataforma/format";
 import { cycleDurationMonths, cycleLabel, exerciseCount } from "@/lib/plataforma/workouts";
 import { useAccountSession } from "@/lib/plataforma/session";
 import { usePlataformaStore } from "@/lib/plataforma/store";
-import type { Student, WorkoutProgram } from "@/lib/plataforma/types";
+import type { Student, WorkoutLog, WorkoutProgram } from "@/lib/plataforma/types";
 
 // Aba "Treinos" da ficha do aluno.
 export function StudentWorkoutsTab({ student }: { student: Student }) {
-  const { workoutsFor, updateWorkout, removeWorkout } = usePlataformaStore();
+  const { workoutsFor, updateWorkout, removeWorkout, logsFor } = usePlataformaStore();
   const { profile } = useAccountSession();
   const { push } = useToast();
   const canEdit = Boolean(profile?.permissions.canCreateWorkouts);
@@ -31,9 +31,11 @@ export function StudentWorkoutsTab({ student }: { student: Student }) {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const list = workoutsFor(student.id);
+  const logs = logsFor(student.id);
   const active = list.filter((w) => w.active);
+  const drafts = list.filter((w) => !w.active && !w.publishedAt);
   const archived = list
-    .filter((w) => !w.active)
+    .filter((w) => !w.active && w.publishedAt)
     .sort((a, b) => (b.endedOn ?? b.startsOn).localeCompare(a.endedOn ?? a.startsOn));
   const byYear = archived.reduce<Map<string, WorkoutProgram[]>>((map, w) => {
     const year = (w.endedOn ?? w.startsOn).slice(0, 4);
@@ -49,6 +51,19 @@ export function StudentWorkoutsTab({ student }: { student: Student }) {
     setEditing(opts.workout);
     setCopyFrom(opts.copy);
     setEditorOpen(true);
+  }
+
+  async function publish(w: WorkoutProgram) {
+    const current = active[0];
+    const saved = await updateWorkout(w.id, { active: true });
+    if (!saved) return;
+    push({
+      tone: "success",
+      title: "Ficha liberada ao aluno",
+      description: `${current ? `"${current.title}" foi para o histórico. ` : ""}${
+        student.hasAppLogin ? "Avise pelo WhatsApp que o treino novo está na área do aluno." : "O aluno ainda não tem a área do aluno: envie o acesso pelo botão App."
+      }`,
+    });
   }
 
   async function toggle(w: WorkoutProgram) {
@@ -79,6 +94,8 @@ export function StudentWorkoutsTab({ student }: { student: Student }) {
       onCopy={() => openEditor({ copy: w })}
       onToggleActive={() => void toggle(w)}
       onDelete={() => setDeleting(w)}
+      onPublish={() => void publish(w)}
+      logs={logs}
     />
   );
 
@@ -87,8 +104,12 @@ export function StudentWorkoutsTab({ student }: { student: Student }) {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-[12.5px] text-ink-500">
           {active.length > 0
-            ? "Ficha em uso. Envie pelo WhatsApp ou em PDF para o aluno levar no celular."
-            : "Este aluno ainda não tem ficha em uso."}
+            ? student.hasAppLogin
+              ? "Ficha em uso, visível na área do aluno. Fichas novas ficam em rascunho até você liberar."
+              : "Ficha em uso. Libere a área do aluno pelo botão App ou envie em PDF."
+            : drafts.length > 0
+              ? "Revise o rascunho e libere quando estiver pronto."
+              : "Este aluno ainda não tem ficha em uso."}
         </p>
         {canEdit && student.status === "ativo" && (
           <button
@@ -118,7 +139,14 @@ export function StudentWorkoutsTab({ student }: { student: Student }) {
         </div>
       ) : (
         <>
+          {drafts.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-info-700">Rascunhos para revisar</p>
+              {drafts.map((w) => render(w, true))}
+            </div>
+          )}
           {active.map((w) => render(w, true))}
+          {logs.length > 0 && <TrainingLog logs={logs} />}
           {archived.length > 0 && (
             <section className="rounded-card border border-ink-200 bg-white">
               <header className="flex items-center gap-2 border-b border-ink-100 px-4 py-3 md:px-5">
@@ -187,5 +215,51 @@ export function StudentWorkoutsTab({ student }: { student: Student }) {
         }}
       />
     </motion.div>
+  );
+}
+
+// Treinos feitos pelo aluno na área do aluno.
+function TrainingLog({ logs }: { logs: WorkoutLog[] }) {
+  const done = logs.filter((l) => l.finishedAt || l.exercises.some((e) => e.done));
+  const since = (days: number) => done.filter((l) => Date.now() - new Date(`${l.performedOn}T12:00:00`).getTime() <= days * 86_400_000).length;
+  return (
+    <section className="rounded-card border border-ink-200 bg-white">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 px-4 py-3 md:px-5">
+        <div className="flex items-center gap-2">
+          <CalendarCheck className="h-4 w-4 text-ink-500" strokeWidth={2.2} />
+          <h2 className="text-[13.5px] font-bold text-ink-900">Treinos feitos pelo aluno</h2>
+        </div>
+        <p className="text-[11.5px] text-ink-500">
+          <span className="font-bold text-ink-900">{since(7)}</span> nos últimos 7 dias · <span className="font-bold text-ink-900">{since(30)}</span> em 30 dias
+        </p>
+      </header>
+      <ol className="divide-y divide-ink-100">
+        {done.slice(0, 8).map((log) => {
+          const checked = log.exercises.filter((e) => e.done).length;
+          const loads = log.exercises.filter((e) => e.load);
+          return (
+            <li key={log.id} className="px-4 py-3 md:px-5">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <p className="text-[13px] font-semibold text-ink-900">
+                  Treino {log.dayName}
+                  <span className="ml-2 text-[11.5px] font-normal text-ink-500">{formatDateValue(log.performedOn)}</span>
+                </p>
+                <span className={cn("text-[11.5px] font-semibold", log.finishedAt ? "text-success-700" : "text-warning-800")}>
+                  {log.finishedAt ? "Concluído" : "Incompleto"} · {checked}/{log.exercises.length} exercícios
+                </span>
+              </div>
+              {loads.length > 0 && (
+                <p className="mt-1 text-[11.5px] leading-[1.5] text-ink-600">
+                  {loads.map((e) => `${e.name}: ${e.load}`).join(" · ")}
+                </p>
+              )}
+              {log.comment && (
+                <p className="mt-1.5 rounded-btn bg-ink-50 px-2.5 py-1.5 text-[12px] leading-[1.5] text-ink-800">&ldquo;{log.comment}&rdquo;</p>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
   );
 }

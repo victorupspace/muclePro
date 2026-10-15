@@ -56,12 +56,12 @@ export function cleanDays(days: WorkoutDay[]): WorkoutDay[] {
     .filter((d) => d.exercises.length > 0);
 }
 
-export type WorkoutStatus = "ativa" | "vencendo" | "reavaliar" | "arquivada";
+export type WorkoutStatus = "rascunho" | "ativa" | "vencendo" | "reavaliar" | "arquivada";
 
 export const EXPIRING_DAYS = 14;
 
 export function workoutStatus(w: WorkoutProgram): WorkoutStatus {
-  if (!w.active) return "arquivada";
+  if (!w.active) return w.publishedAt ? "arquivada" : "rascunho";
   if (w.reviewOn) {
     const days = daysFromToday(w.reviewOn);
     if (days < 0) return "reavaliar";
@@ -71,6 +71,7 @@ export function workoutStatus(w: WorkoutProgram): WorkoutStatus {
 }
 
 export const WORKOUT_STATUS_LABEL: Record<WorkoutStatus, string> = {
+  rascunho: "Rascunho",
   ativa: "Em uso",
   vencendo: "Vence em breve",
   reavaliar: "Ciclo vencido",

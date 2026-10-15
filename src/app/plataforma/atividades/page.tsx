@@ -95,6 +95,7 @@ function roleLabel(role?: string) {
   if (!role) return "";
   if (role === "dono") return "Dono";
   if (role === "sistema") return "Automático";
+  if (role === "aluno") return "Aluno (app)";
   return STAFF_ROLE_LABEL[role as StaffRole] ?? role;
 }
 

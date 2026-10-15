@@ -20,6 +20,7 @@ import type {
   Notification,
   ChurnReason,
   Assessment,
+  WorkoutLog,
   HealthCondition,
   Lead,
   LeadEvent,
@@ -93,6 +94,10 @@ export type StudentRow = {
   medical_notes: string | null;
   health_conditions: string[] | null;
   health_restrictions: string | null;
+  auth_user_id: string | null;
+  app_invited_at: string | null;
+  app_connected_at: string | null;
+  app_last_seen_at: string | null;
   emergency_contact_name: string | null;
   emergency_contact_phone: string | null;
   status: StudentStatus;
@@ -226,6 +231,10 @@ export const mapStudent = (r: StudentRow): Student => ({
   medicalNotes: r.medical_notes ?? undefined,
   healthConditions: (r.health_conditions ?? []) as HealthCondition[],
   healthRestrictions: r.health_restrictions ?? undefined,
+  hasAppLogin: Boolean(r.auth_user_id),
+  appInvitedAt: r.app_invited_at ?? undefined,
+  appConnectedAt: r.app_connected_at ?? undefined,
+  appLastSeenAt: r.app_last_seen_at ?? undefined,
   emergencyContactName: r.emergency_contact_name ?? undefined,
   emergencyContactPhone: r.emergency_contact_phone ?? undefined,
   status: r.status,
@@ -366,6 +375,8 @@ export type WorkoutRow = {
   review_on: string | null;
   cycle_months: number | null;
   ended_on: string | null;
+  published_at: string | null;
+  student_seen_at: string | null;
   active: boolean;
   created_at: string;
   updated_at: string;
@@ -385,6 +396,8 @@ export const mapWorkout = (r: WorkoutRow): WorkoutProgram => ({
   reviewOn: r.review_on ?? undefined,
   cycleMonths: r.cycle_months ?? undefined,
   endedOn: r.ended_on ?? undefined,
+  publishedAt: r.published_at ?? undefined,
+  studentSeenAt: r.student_seen_at ?? undefined,
   active: r.active,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
@@ -426,4 +439,26 @@ export const mapAssessment = (r: AssessmentRow): Assessment => ({
   authorStaffId: r.author_staff_id ?? undefined,
   authorName: r.author_name ?? undefined,
   createdAt: r.created_at,
+});
+
+export type WorkoutLogRow = {
+  id: string;
+  student_id: string;
+  workout_id: string;
+  day_name: string;
+  performed_on: string;
+  exercises: WorkoutLog["exercises"] | null;
+  comment: string | null;
+  finished_at: string | null;
+};
+
+export const mapWorkoutLog = (r: WorkoutLogRow): WorkoutLog => ({
+  id: r.id,
+  studentId: r.student_id,
+  workoutId: r.workout_id,
+  dayName: r.day_name,
+  performedOn: r.performed_on,
+  exercises: Array.isArray(r.exercises) ? r.exercises : [],
+  comment: r.comment ?? undefined,
+  finishedAt: r.finished_at ?? undefined,
 });

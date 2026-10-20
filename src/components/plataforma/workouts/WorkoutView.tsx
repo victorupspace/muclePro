@@ -55,6 +55,13 @@ type Props = {
 };
 
 // Ficha completa: treinos lado a lado (ou empilhados no celular) e ações.
+// Endereço público da área do aluno (o domínio oficial, não o do preview).
+function appBaseUrl() {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "");
+  if (configured) return configured;
+  return typeof window !== "undefined" ? window.location.origin : "";
+}
+
 export function WorkoutView({
   workout,
   student,
@@ -83,7 +90,7 @@ export function WorkoutView({
     }
     return map;
   }, [logs, workout.id]);
-  const appText = `Oi ${firstName(student.fullName)}! Seu treino ${workout.title} da ${companyName} está na sua área do aluno. Abra pelo atalho no celular ou em ${typeof window !== "undefined" ? window.location.origin : ""}/app. Bom treino!`;
+  const appText = `Oi ${firstName(student.fullName)}! Seu treino ${workout.title} da ${companyName} está na sua área do aluno. Abra pelo atalho no celular ou em ${appBaseUrl()}/app. Bom treino!`;
   const status = workoutStatus(workout);
   const progress = cycleProgress(workout);
   const daysLeft = workout.reviewOn ? daysFromToday(workout.reviewOn) : null;

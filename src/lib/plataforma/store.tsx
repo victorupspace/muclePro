@@ -166,7 +166,26 @@ export type NewStudent = {
 };
 export type StudentPatch = Partial<NewStudent>;
 
-export type StudentAppInvite = { link: string; expiresAt: string; verify: "nascimento" | "whatsapp" };
+export type StudentAppInvite = {
+  link: string;
+  expiresAt: string;
+  verify: "nascimento" | "whatsapp";
+  createdAt?: string;
+  createdByName?: string | null;
+};
+
+export type StudentAppLinkStatus = "ativo" | "usado" | "substituido" | "expirado" | "bloqueado";
+
+export type StudentAppLinkEntry = {
+  id: string;
+  status: StudentAppLinkStatus;
+  createdAt: string;
+  createdByName: string | null;
+  expiresAt: string;
+  closedAt: string | null;
+};
+
+export type StudentAppLinks = { current: StudentAppInvite | null; history: StudentAppLinkEntry[] };
 
 export type StudentHealth = { conditions: HealthCondition[]; restrictions: string; medicalNotes: string };
 
@@ -333,6 +352,7 @@ type Ctx = {
 
   updateStudentHealth: (studentId: string, health: StudentHealth) => Promise<boolean>;
   inviteStudentApp: (studentId: string) => Promise<StudentAppInvite | null>;
+  loadStudentAppLinks: (studentId: string) => Promise<StudentAppLinks | null>;
   revokeStudentApp: (studentId: string) => Promise<boolean>;
   addAssessment: (input: NewAssessment) => Promise<Assessment | null>;
   updateAssessment: (id: string, patch: AssessmentPatch) => Promise<Assessment | null>;
@@ -1257,7 +1277,7 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const callStudentApp = useCallback(
-    async (id: string, method: "POST" | "DELETE") => {
+    async (id: string, method: "GET" | "POST" | "DELETE") => {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
       if (!token) {
@@ -1268,7 +1288,9 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
         method,
         headers: { Authorization: `Bearer ${token}` },
       });
-      const result = (await response.json().catch(() => null)) as ({ error?: string } & Partial<StudentAppInvite>) | null;
+      const result = (await response.json().catch(() => null)) as
+        | ({ error?: string } & Partial<StudentAppInvite> & Partial<StudentAppLinks>)
+        | null;
       if (!response.ok) {
         setActionError(result?.error ?? "Não foi possível concluir. Tente novamente.");
         return null;
@@ -1283,9 +1305,24 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       const result = await callStudentApp(studentId, "POST");
       if (!result?.link) return null;
       await reloadStudent(studentId);
-      return { link: result.link, expiresAt: result.expiresAt ?? "", verify: result.verify ?? "nascimento" };
+      return {
+        link: result.link,
+        expiresAt: result.expiresAt ?? "",
+        verify: result.verify ?? "nascimento",
+        createdAt: result.createdAt,
+        createdByName: result.createdByName ?? null,
+      };
     },
     [callStudentApp, reloadStudent],
+  );
+
+  const loadStudentAppLinks = useCallback(
+    async (studentId: string) => {
+      const result = await callStudentApp(studentId, "GET");
+      if (!result) return null;
+      return { current: result.current ?? null, history: result.history ?? [] };
+    },
+    [callStudentApp],
   );
 
   const revokeStudentApp = useCallback(
@@ -1720,6 +1757,7 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       addLeadEvent,
       updateStudentHealth,
       inviteStudentApp,
+      loadStudentAppLinks,
       revokeStudentApp,
       addAssessment,
       updateAssessment,
@@ -1798,6 +1836,7 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       addLeadEvent,
       updateStudentHealth,
       inviteStudentApp,
+      loadStudentAppLinks,
       revokeStudentApp,
       addAssessment,
       updateAssessment,

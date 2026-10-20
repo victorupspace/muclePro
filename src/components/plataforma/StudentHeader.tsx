@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { BillingBadge, RiskBadge, StudentStatusBadge } from "./Badges";
 import { ChurnReasonModal } from "./ChurnReasonModal";
-import { StudentAppDialog, studentAppState } from "./StudentAppDialog";
+import { STUDENT_APP_LABEL, StudentAppDialog, studentAppState } from "./StudentAppDialog";
 import { cn } from "@/lib/cn";
 import {
   CHURN_REASON_LABEL,
@@ -115,6 +115,9 @@ export function StudentHeader({
     canCharge_ && student.status === "ativo" && (billing.state === "inadimplente" || billing.state === "a_vencer");
   const canRegister = canCharge_ && student.status === "ativo" && Boolean(billing.nextPayment);
 
+  const canManageApp = canEdit || Boolean(profile?.permissions.canCreateWorkouts);
+  const appState = studentAppState(student);
+
   const secondaryActions = [
     ...(canEdit ? [{ label: "Editar", onClick: onEdit, icon: <Pencil className="h-3.5 w-3.5" strokeWidth={2.2} /> }] : []),
     ...(profile?.permissions.readOnly
@@ -123,29 +126,6 @@ export function StudentHeader({
           { label: "Tarefa", onClick: onAddTask, icon: <ListTodo className="h-3.5 w-3.5" strokeWidth={2.2} /> },
           { label: "Nota", onClick: onAddNote, icon: <StickyNote className="h-3.5 w-3.5" strokeWidth={2.2} /> },
         ]),
-    ...(canEdit || profile?.permissions.canCreateWorkouts
-      ? [
-          {
-            label: "App",
-            onClick: () => setAppOpen(true),
-            icon: (
-              <span className="relative inline-flex">
-                <Smartphone className="h-3.5 w-3.5" strokeWidth={2.2} />
-                <span
-                  className={cn(
-                    "absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full ring-2 ring-white",
-                    studentAppState(student) === "conectado"
-                      ? "bg-success-500"
-                      : studentAppState(student) === "convite_enviado"
-                        ? "bg-warning-500"
-                        : "bg-ink-300",
-                  )}
-                />
-              </span>
-            ),
-          },
-        ]
-      : []),
   ];
 
   return (
@@ -159,7 +139,7 @@ export function StudentHeader({
           Voltar para alunos
         </Link>
 
-        <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="mt-3 flex flex-col gap-4 2xl:flex-row 2xl:items-start 2xl:justify-between">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-1.5">
               <StudentStatusBadge status={student.status} />
@@ -309,7 +289,7 @@ export function StudentHeader({
             </div>
           </div>
 
-          <div className="flex shrink-0 flex-wrap items-center gap-2 lg:mt-[26px] lg:flex-nowrap lg:justify-end">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 2xl:mt-[26px] 2xl:flex-nowrap 2xl:justify-end">
             {canRegister && (
               <button
                 type="button"
@@ -333,6 +313,43 @@ export function StudentHeader({
               >
                 <MessageCircle className="h-3.5 w-3.5" strokeWidth={2.4} />
                 {billing.state === "inadimplente" ? "Cobrar no WhatsApp" : "Lembrar no WhatsApp"}
+              </button>
+            )}
+
+            {canManageApp && (
+              <button
+                type="button"
+                onClick={() => setAppOpen(true)}
+                title="Link pessoal da área do aluno"
+                className={cn(
+                  "inline-flex h-9 items-center gap-2 rounded-btn border px-3 text-[12.5px] font-semibold transition-colors",
+                  appState === "conectado"
+                    ? "border-brand/20 bg-brand/[0.06] text-brand hover:bg-brand/10"
+                    : "border-brand bg-brand/[0.06] text-brand hover:bg-brand hover:text-white",
+                )}
+              >
+                <span className="relative inline-flex">
+                  <Smartphone className="h-3.5 w-3.5" strokeWidth={2.4} />
+                  <span
+                    className={cn(
+                      "absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full ring-2 ring-white",
+                      appState === "conectado" ? "bg-success-500" : appState === "convite_enviado" ? "bg-warning-500" : "bg-ink-300",
+                    )}
+                  />
+                </span>
+                App do aluno
+                <span
+                  className={cn(
+                    "rounded-full px-1.5 py-px text-[10px] font-bold ring-1 ring-inset",
+                    appState === "conectado"
+                      ? "bg-success-50 text-success-700 ring-success-200"
+                      : appState === "convite_enviado"
+                        ? "bg-warning-50 text-warning-800 ring-warning-200"
+                        : "bg-white text-ink-500 ring-ink-200",
+                  )}
+                >
+                  {STUDENT_APP_LABEL[appState]}
+                </span>
               </button>
             )}
 

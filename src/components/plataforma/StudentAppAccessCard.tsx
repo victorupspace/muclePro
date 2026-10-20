@@ -43,14 +43,24 @@ export function StudentAppAccessCard({ student }: { student: Student }) {
   const company = profile?.companyName ?? "academia";
   const readOnly = Boolean(profile?.permissions.readOnly);
 
-  async function generate() {
+  // Gera o link e já abre a conversa do aluno no WhatsApp. A aba abre no
+  // clique (antes da resposta do servidor) para o navegador não bloquear.
+  async function generateAndSend() {
+    const tab = student.whatsapp ? window.open("about:blank", "_blank") : null;
     setBusy(true);
     const result = await inviteStudentApp(student.id);
     setBusy(false);
-    if (!result) return;
+    if (!result) {
+      tab?.close();
+      return;
+    }
     setInvite(result);
     setFresh(true);
     void refresh();
+    if (tab && student.whatsapp) {
+      tab.opener = null;
+      tab.location.href = whatsappLink(student.whatsapp, studentAppMessage(result, student.fullName, company));
+    }
   }
 
   async function copy() {
@@ -87,6 +97,15 @@ export function StudentAppAccessCard({ student }: { student: Student }) {
           <div className="min-w-0">
             <p className="text-[14px] font-bold text-ink-900">Enviar o app para o aluno</p>
             <p className="mt-0.5 text-[12px] leading-[1.5] text-ink-600">{loading ? "Buscando o link do aluno..." : statusText}</p>
+            {!loading && (
+              <p className="mt-1 text-[11.5px] leading-[1.5] text-ink-500">
+                {state === "conectado"
+                  ? "Já usa o app. Um novo link só é preciso se trocar de celular; quem está conectado continua conectado."
+                  : invite
+                    ? "Reenviar manda o mesmo link. Gerar outro (em Histórico e opções) cancela este."
+                    : "O link é pessoal, vale 7 dias e funciona uma vez. Gerar outro cancela o anterior."}
+              </p>
+            )}
             {invite && (
               <p className="mt-1.5 flex min-w-0 items-center gap-2">
                 <span className="min-w-0 truncate rounded-[4px] bg-brand/[0.06] px-2 py-1 font-mono text-[11px] text-brand">{invite.link}</span>
@@ -126,12 +145,18 @@ export function StudentAppAccessCard({ student }: { student: Student }) {
           ) : student.status === "ativo" && !readOnly ? (
             <button
               type="button"
-              onClick={() => void generate()}
+              onClick={() => void generateAndSend()}
               disabled={busy}
               className="inline-flex h-9 items-center gap-1.5 rounded-btn bg-brand px-3.5 text-[12.5px] font-semibold text-white transition-colors hover:bg-brand-hover disabled:opacity-60"
             >
-              <Smartphone className="h-3.5 w-3.5" strokeWidth={2.4} />
-              {busy ? "Gerando link..." : state === "conectado" ? "Gerar link para outro celular" : "Gerar link de acesso"}
+              {student.whatsapp ? <MessageCircle className="h-3.5 w-3.5" strokeWidth={2.4} /> : <Smartphone className="h-3.5 w-3.5" strokeWidth={2.4} />}
+              {busy
+                ? "Gerando link..."
+                : student.whatsapp
+                  ? state === "conectado"
+                    ? "Enviar novo link pelo WhatsApp"
+                    : "Enviar link pelo WhatsApp"
+                  : "Gerar link de acesso"}
             </button>
           ) : null}
           {!loading && (linkCount > 0 || state !== "sem_acesso") && (

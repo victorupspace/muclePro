@@ -167,6 +167,7 @@ export default function AlunoFichaPage() {
             onToggleTask={(id) => void toggleTask(id)}
             canEdit={Boolean(profile?.permissions.canRegisterStudents)}
             canCharge={Boolean(profile?.permissions.canSendPaymentLinks)}
+            canManageApp={Boolean(profile?.permissions.canRegisterStudents || profile?.permissions.canCreateWorkouts)}
           />
         )}
         {tab === "saude" && <StudentHealthTab student={student} />}

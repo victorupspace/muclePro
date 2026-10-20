@@ -37,12 +37,25 @@ const LINK_STATUS: Record<StudentAppLinkStatus, { label: string; tone: string }>
   bloqueado: { label: "Bloqueado", tone: "bg-danger-50 text-danger-700 ring-danger-200" },
 };
 
-function daysLeft(iso: string) {
+export function daysLeft(iso: string) {
   return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000));
 }
 
-function shortDate(iso: string) {
+export function shortDate(iso: string) {
   return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+}
+
+// Mensagem do WhatsApp com o link pessoal, enviada pela equipe ao aluno.
+export function studentAppMessage(invite: StudentAppInvite, studentName: string, company: string) {
+  const verifyText = invite.verify === "whatsapp" ? "os 4 últimos números do seu WhatsApp" : "a sua data de nascimento";
+  return [
+    `Oi ${firstName(studentName)}! A ${company} agora tem a área do aluno no celular: seu treino do dia, a ficha completa, a sua evolução e as suas mensalidades.`,
+    "",
+    `Seu link pessoal (vale até ${shortDate(invite.expiresAt)} e funciona uma vez):`,
+    invite.link,
+    "",
+    `No primeiro acesso, confirme ${verifyText}. Depois toque em "Adicionar à tela inicial" para abrir como um app.`,
+  ].join("\n");
 }
 
 // Link pessoal da área do aluno: enviar pelo WhatsApp, reenviar o link
@@ -84,17 +97,7 @@ export function StudentAppDialog({ open, onClose, student }: { open: boolean; on
   const state = studentAppState(student);
   const company = profile?.companyName ?? "academia";
   const name = firstName(student.fullName);
-  const verifyText = invite?.verify === "whatsapp" ? "os 4 últimos números do seu WhatsApp" : "a sua data de nascimento";
-  const message = invite
-    ? [
-        `Oi ${name}! A ${company} agora tem a área do aluno no celular: seu treino do dia, a ficha completa, a sua evolução e as suas mensalidades.`,
-        "",
-        `Seu link pessoal (vale até ${shortDate(invite.expiresAt)} e funciona uma vez):`,
-        invite.link,
-        "",
-        `No primeiro acesso, confirme ${verifyText}. Depois toque em "Adicionar à tela inicial" para abrir como um app.`,
-      ].join("\n")
-    : "";
+  const message = invite ? studentAppMessage(invite, student.fullName, company) : "";
 
   async function generate() {
     setBusy("invite");
@@ -128,7 +131,7 @@ export function StudentAppDialog({ open, onClose, student }: { open: boolean; on
   const pastLinks = history.filter((h) => h.status !== "ativo" || !invite);
 
   return (
-    <Modal open={open} onClose={onClose} title="Área do aluno" description={`${student.fullName} · treino, evolução e mensalidades no celular`}>
+    <Modal open={open} onClose={onClose} title="Acesso ao app do aluno" description={`${student.fullName} · link pessoal, histórico e remoção do acesso`}>
       <div className="space-y-4">
         <p
           className={cn(

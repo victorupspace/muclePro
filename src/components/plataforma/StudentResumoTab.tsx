@@ -20,6 +20,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { PaymentStatusBadge } from "./Badges";
+import { StudentAppAccessCard } from "./StudentAppAccessCard";
 import { useRevealList } from "./motion";
 import { cn } from "@/lib/cn";
 import { EASE } from "@/lib/motion";
@@ -56,6 +57,7 @@ type Props = {
   onToggleTask: (id: string) => void;
   canEdit: boolean;
   canCharge: boolean;
+  canManageApp: boolean;
 };
 
 export function StudentResumoTab({
@@ -72,6 +74,7 @@ export function StudentResumoTab({
   onToggleTask,
   canEdit,
   canCharge,
+  canManageApp,
 }: Props) {
   const age = ageFromBirthDate(student.birthDate);
   const recentPayments = payments.slice(0, 4);
@@ -131,6 +134,10 @@ export function StudentResumoTab({
           hint={lastActivity ? lastActivity.title : "Sem registros"}
         />
       </div>
+
+      {canManageApp && (student.status === "ativo" || student.appInvitedAt || student.hasAppLogin) && (
+        <StudentAppAccessCard student={student} />
+      )}
 
       {student.status === "ativo" && risk.level !== "baixo" && (
         <Card

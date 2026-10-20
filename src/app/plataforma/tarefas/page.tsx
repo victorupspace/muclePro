@@ -14,9 +14,9 @@ import { usePlataformaStore } from "@/lib/plataforma/store";
 import type { Task, TaskPriority } from "@/lib/plataforma/types";
 
 const VIEW_OPTIONS = [
+  { value: "all", label: "Todas" },
   { value: "open", label: "Em aberto" },
   { value: "done", label: "Concluídas" },
-  { value: "all", label: "Todas" },
 ];
 
 const PRIORITY_TONE: Record<TaskPriority, string> = {
@@ -32,7 +32,7 @@ export default function TarefasPage() {
   const { profile } = useAccountSession();
   // "mine" = tarefas do próprio usuário (do dono: as sem responsável).
   const myStaffId = profile?.staffId ?? null;
-  const [view, setView] = useState("open");
+  const [view, setView] = useState("all");
   const [owner, setOwner] = useState(profile?.permissions.isManager ? "all" : "mine");
   const [studentFilter, setStudentFilter] = useState("all");
   const [addOpen, setAddOpen] = useState(false);
@@ -129,7 +129,11 @@ export default function TarefasPage() {
           <EmptyState
             icon={<ListTodo className="h-5 w-5" strokeWidth={2.2} />}
             title={view === "done" ? "Nenhuma tarefa concluída" : "Nenhuma tarefa por aqui"}
-            description={view === "done" ? "As concluídas aparecem aqui." : "Crie a primeira tarefa e defina um prazo."}
+            description={
+              view === "done"
+                ? "As concluídas ficam aqui por 7 dias e depois são apagadas."
+                : "Crie a primeira tarefa e defina um prazo."
+            }
           />
         )
       ) : (
@@ -168,7 +172,7 @@ function TaskGroup({
   const listRef = useRevealList<HTMLUListElement>([group.tasks.length]);
   return (
     <section>
-      <header className="mb-2 flex items-center gap-2">
+      <header className="mb-2 flex flex-wrap items-center gap-2">
         <h2
           className={cn(
             "text-[10.5px] font-bold uppercase tracking-[0.14em]",
@@ -180,6 +184,7 @@ function TaskGroup({
         <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-ink-100 px-1 text-[10px] font-bold text-ink-600">
           {group.tasks.length}
         </span>
+        {group.key === "done" && <span className="text-[11px] text-ink-500">Apagadas 7 dias depois de concluídas</span>}
       </header>
       <ul ref={listRef} className="space-y-2">
         {group.tasks.map((task) => {

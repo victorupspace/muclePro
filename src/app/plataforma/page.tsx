@@ -95,8 +95,10 @@ export default function PlataformaDashboardPage() {
         </div>
       )}
 
+      {/* Cartões e blocos com o mesmo espaço entre linhas e entre colunas. */}
+      <div className="space-y-4">
       <section>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
           <KpiCard
             label="Alunos ativos"
             value={<AnimatedNumber value={metrics.activeStudents} />}
@@ -194,6 +196,7 @@ export default function PlataformaDashboardPage() {
           <TaskList tasks={openTasks} onToggle={toggleTask} onCreate={() => setAddTask(true)} />
         </ModuleCard>
       </section>
+      </div>
 
       <StudentFormModal open={addStudent} onClose={() => setAddStudent(false)} />
       <AddTaskModal open={addTask} onClose={() => setAddTask(false)} />

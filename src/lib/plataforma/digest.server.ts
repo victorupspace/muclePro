@@ -442,6 +442,9 @@ export async function sendEmail(to: string, email: { subject: string; html: stri
         422,
       );
     }
+    if (body.message && /domain is not verified/i.test(body.message)) {
+      throw new DigestError("O domínio de envio ainda está em verificação. Tente de novo em alguns minutos.", 503);
+    }
     throw new DigestError(body.message || `Falha no envio (${res.status}).`, 502);
   }
   return (await res.json().catch(() => ({}))) as { id?: string };

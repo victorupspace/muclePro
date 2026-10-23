@@ -2,27 +2,22 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, Loader2, Wallet } from "lucide-react";
+import { Loader2, Wallet } from "lucide-react";
 import { ChurnReasonPicker } from "./ChurnReasonModal";
 import { DatePickerField } from "./DatePickerField";
 import { HealthFields, MeasureFields, emptyMeasureDraft, measuresFrom, type HealthDraft, type MeasureDraft } from "./health/HealthKit";
 import { CurrencyInput, Field, inputClass, ModalFooter, SectionLabel, selectClass, textareaClass } from "./FormKit";
 import { Modal } from "./Modal";
+import { CpfStatusLine } from "./CpfStatusLine";
 import { useToast } from "./Toast";
 import { fetchCEP } from "@/lib/cadastro/cep";
-import { isValidCPF, maskCEP, maskCPF, maskPhoneBR, onlyDigits } from "@/lib/cadastro/masks";
+import { checkCpf, type CPFStatus } from "@/lib/cadastro/cpf-check";
+import { maskCEP, maskCPF, maskPhoneBR, onlyDigits } from "@/lib/cadastro/masks";
 import { cn } from "@/lib/cn";
-import { supabase } from "@/lib/supabase/client";
 import { hasAnyMeasure } from "@/lib/plataforma/assessments";
 import { PLAN_FREQUENCY_LABEL, formatCurrency, todayValue } from "@/lib/plataforma/format";
 
 const UFS = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
-
-type CPFStatus =
-  | { state: "idle" }
-  | { state: "checking" }
-  | { state: "ok"; source: "receita" | "algoritmo"; warning?: string; nameMatches?: boolean; birthMatches?: boolean }
-  | { state: "invalid"; message: string };
 
 // Data aaaa-mm-dd deslocada em meses/anos a partir de hoje.
 function shiftedToday(months: number) {
@@ -144,41 +139,10 @@ export function StudentFormModal({ open, onClose, student, focusPlan, prefill, t
       setCpfStatus({ state: "idle" });
       return true;
     }
-    if (digits.length < 11) {
-      setCpfStatus({ state: "invalid", message: "O CPF tem 11 números." });
-      return false;
-    }
-    if (!isValidCPF(digits)) {
-      setCpfStatus({ state: "invalid", message: "CPF inválido. Confira os números digitados." });
-      return false;
-    }
     setCpfStatus({ state: "checking" });
-    const { data } = await supabase.auth.getSession();
-    const response = await fetch("/api/plataforma/cpf", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session?.access_token ?? ""}` },
-      body: JSON.stringify({ cpf: digits, fullName, birthDate }),
-    }).catch(() => null);
-    const result = (await response?.json().catch(() => null)) as
-      | { valid?: boolean; source?: "receita" | "algoritmo"; message?: string; warning?: string; nameMatches?: boolean; birthMatches?: boolean }
-      | null;
-    if (!response?.ok || !result) {
-      // Sem resposta do servidor: vale a conferência dos dígitos.
-      setCpfStatus({ state: "ok", source: "algoritmo" });
-      return true;
-    }
-    if (!result.valid) {
-      setCpfStatus({ state: "invalid", message: result.message ?? "CPF inválido." });
-      return false;
-    }
-    setCpfStatus({
-      state: "ok",
-      source: result.source ?? "algoritmo",
-      warning: result.warning,
-      nameMatches: result.nameMatches,
-      birthMatches: result.birthMatches,
-    });
-    return true;
+    const result = await checkCpf(digits, { fullName, birthDate });
+    setCpfStatus(result);
+    return result.state !== "invalid";
   }
 
   async function lookupCep(value: string) {
@@ -587,39 +551,3 @@ export function StudentFormModal({ open, onClose, student, focusPlan, prefill, t
 // Reexportado para quem precisa só do campo de valor.
 export { CurrencyInput };
 
-function CpfStatusLine({ status }: { status: CPFStatus }) {
-  if (status.state === "checking") {
-    return (
-      <p className="mt-1 inline-flex items-center gap-1.5 text-[11.5px] text-ink-500">
-        <Loader2 className="h-3 w-3 animate-spin" strokeWidth={2.4} />
-        Conferindo o CPF...
-      </p>
-    );
-  }
-  if (status.state === "invalid") {
-    return (
-      <p role="alert" className="mt-1 text-[11.5px] font-semibold text-danger-600">
-        {status.message}
-      </p>
-    );
-  }
-  if (status.state === "ok") {
-    const mismatch = status.nameMatches === false || status.birthMatches === false;
-    if (status.warning || mismatch) {
-      return (
-        <p className="mt-1 flex items-start gap-1.5 text-[11.5px] font-semibold leading-[1.45] text-warning-800">
-          <AlertTriangle className="mt-px h-3 w-3 shrink-0" strokeWidth={2.4} />
-          {status.warning ??
-            (status.nameMatches === false ? "O nome não bate com o da Receita Federal. Confira o CPF." : "A data de nascimento não bate com a da Receita Federal.")}
-        </p>
-      );
-    }
-    return (
-      <p className="mt-1 inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-success-700">
-        <CheckCircle2 className="h-3 w-3" strokeWidth={2.4} />
-        {status.source === "receita" ? "CPF confere na Receita Federal" : "CPF válido"}
-      </p>
-    );
-  }
-  return null;
-}

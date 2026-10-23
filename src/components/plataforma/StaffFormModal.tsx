@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CpfStatusLine } from "./CpfStatusLine";
 import { DatePickerField } from "./DatePickerField";
 import { Field, inputClass, ModalFooter, SectionLabel, selectClass, textareaClass, Toggle } from "./FormKit";
 import { Modal } from "./Modal";
 import { useToast } from "./Toast";
 import { cn } from "@/lib/cn";
-import { isValidCREF, maskCPF, maskCREF, maskPhoneBR } from "@/lib/cadastro/masks";
+import { checkCpf, type CPFStatus } from "@/lib/cadastro/cpf-check";
+import { isValidCREF, maskCPF, maskCREF, maskPhoneBR, onlyDigits } from "@/lib/cadastro/masks";
 import { STAFF_ROLE_LABEL } from "@/lib/plataforma/format";
 import { usePlataformaStore } from "@/lib/plataforma/store";
 import type { Staff, StaffRole } from "@/lib/plataforma/types";
@@ -44,6 +46,7 @@ export function StaffFormModal({
   const [role, setRole] = useState<StaffRole>("recepcao");
   const [roleLabel, setRoleLabel] = useState("");
   const [cpf, setCpf] = useState("");
+  const [cpfStatus, setCpfStatus] = useState<CPFStatus>({ state: "idle" });
   const [cref, setCref] = useState("");
   const [crefError, setCrefError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
@@ -66,6 +69,7 @@ export function StaffFormModal({
     setRoleLabel(member?.roleLabel ?? "");
     setCpf(member?.cpf ? maskCPF(member.cpf) : "");
     setCref(member?.cref ?? "");
+    setCpfStatus({ state: "idle" });
     setCrefError(null);
     setEmail(member?.email ?? "");
     setPhone(member?.phone ?? "");
@@ -89,9 +93,31 @@ export function StaffFormModal({
     }
   }
 
+  // CPF opcional; quando informado (ou trocado), passa pela conferência.
+  async function verifyCpf(value = cpf) {
+    const digits = onlyDigits(value);
+    if (!digits || digits === (member?.cpf ?? "")) {
+      setCpfStatus({ state: "idle" });
+      return true;
+    }
+    setCpfStatus({ state: "checking" });
+    const result = await checkCpf(digits, { fullName });
+    setCpfStatus(result);
+    return result.state !== "invalid";
+  }
+
+  function changeCpf(value: string) {
+    const masked = maskCPF(value);
+    setCpf(masked);
+    if (onlyDigits(masked).length === 11) void verifyCpf(masked);
+    else setCpfStatus({ state: "idle" });
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!fullName.trim()) return;
+    if (cpfStatus.state === "checking") return;
+    if (!(await verifyCpf())) return;
     if (role === "personal") {
       if (!cref.trim()) return setCrefError("Informe o CREF do personal.");
       if (!isValidCREF(cref)) return setCrefError("CREF inválido. Use número, categoria e UF, ex.: 012345-G/SP.");
@@ -179,11 +205,14 @@ export function StaffFormModal({
               <Field label="CPF">
                 <input
                   value={cpf}
-                  onChange={(e) => setCpf(maskCPF(e.target.value))}
+                  onChange={(e) => changeCpf(e.target.value)}
+                  onBlur={() => void verifyCpf()}
                   placeholder="000.000.000-00"
                   inputMode="numeric"
-                  className={inputClass}
+                  aria-invalid={cpfStatus.state === "invalid"}
+                  className={cn(inputClass, cpfStatus.state === "invalid" && "border-danger-300")}
                 />
+                <CpfStatusLine status={cpfStatus} />
               </Field>
             )}
           </div>
@@ -214,11 +243,14 @@ export function StaffFormModal({
             <Field label="CPF">
               <input
                 value={cpf}
-                onChange={(e) => setCpf(maskCPF(e.target.value))}
+                onChange={(e) => changeCpf(e.target.value)}
+                onBlur={() => void verifyCpf()}
                 placeholder="000.000.000-00"
                 inputMode="numeric"
-                className={inputClass}
+                aria-invalid={cpfStatus.state === "invalid"}
+                className={cn(inputClass, cpfStatus.state === "invalid" && "border-danger-300")}
               />
+              <CpfStatusLine status={cpfStatus} />
             </Field>
           )}
           <div className="grid gap-3 sm:grid-cols-2">

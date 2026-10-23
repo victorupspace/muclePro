@@ -17,6 +17,7 @@ import {
 } from "@/lib/cadastro/masks";
 import { fetchCNPJ } from "@/lib/cadastro/brasilapi";
 import { cn } from "@/lib/cn";
+import { checkCpf } from "@/lib/cadastro/cpf-check";
 import { EASE } from "@/lib/motion";
 import type { BusinessType } from "@/lib/supabase/leads";
 import type { DocType, EstabelecimentoForm } from "./types";
@@ -66,6 +67,8 @@ export function StepEstabelecimentoForm({ initial, onCancel, onSubmit }: Props) 
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjError, setCnpjError] = useState<string | null>(null);
   const [cnpjFetched, setCnpjFetched] = useState(false);
+  // CPF do responsável conferido (dígitos e, com o Serpro ativo, Receita Federal).
+  const [cpfChecked, setCpfChecked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
@@ -160,6 +163,28 @@ export function StepEstabelecimentoForm({ initial, onCancel, onSubmit }: Props) 
     return () => ctrl.abort();
   }, [form.documento, form.docType]);
 
+  // Conferência do CPF do responsável assim que os 11 números estão completos.
+  useEffect(() => {
+    if (form.docType !== "cpf") return;
+    const digits = onlyDigits(form.documento);
+    setCpfChecked(false);
+    if (digits.length !== 11 || !isValidCPF(digits)) return;
+    let alive = true;
+    setCnpjLoading(true);
+    setCnpjError(null);
+    checkCpf(digits, { publicSignup: true, fullName: form.nome })
+      .then((result) => {
+        if (!alive) return;
+        if (result.state === "invalid") setCnpjError(result.message);
+        else setCpfChecked(true);
+      })
+      .finally(() => alive && setCnpjLoading(false));
+    return () => {
+      alive = false;
+    };
+    // O nome entra só na hora da consulta; mudar o nome não refaz a conferência.
+  }, [form.documento, form.docType]);
+
   function toggleDocType(next: DocType) {
     if (next === form.docType) return;
     const previousSuggestion = autofilledNameRef.current;
@@ -178,12 +203,13 @@ export function StepEstabelecimentoForm({ initial, onCancel, onSubmit }: Props) 
     setErrors((e) => ({ ...e, documento: null }));
     setTouched((t) => ({ ...t, documento: false }));
     setCnpjFetched(false);
+    setCpfChecked(false);
     setCnpjError(null);
   }
 
   const isFormValid =
     REQUIRED_KEYS.every((key) => !validateField(key, String(form[key] ?? ""), form.docType)) &&
-    (form.docType === "cpf" || cnpjFetched);
+    (form.docType === "cpf" ? cpfChecked : cnpjFetched);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -195,6 +221,7 @@ export function StepEstabelecimentoForm({ initial, onCancel, onSubmit }: Props) 
     setTouched(Object.fromEntries(REQUIRED_KEYS.map((key) => [key, true])) as Touched);
     if (Object.values(next).some(Boolean)) return;
     if (form.docType === "cnpj" && !cnpjFetched) return;
+    if (form.docType === "cpf" && !cpfChecked) return;
     setSubmitting(true);
     try {
       await onSubmit({
@@ -269,7 +296,7 @@ export function StepEstabelecimentoForm({ initial, onCancel, onSubmit }: Props) 
             error={touched.documento ? errors.documento ?? cnpjError : cnpjError}
             success={
               form.docType === "cpf"
-                ? touched.documento && !errors.documento && isValidCPF(form.documento)
+                ? cpfChecked
                 : cnpjFetched
             }
             loading={cnpjLoading}

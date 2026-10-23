@@ -12,6 +12,7 @@ import { useToast } from "@/components/plataforma/Toast";
 import { UnitFormModal } from "@/components/plataforma/UnitFormModal";
 import { PageIntro, useRevealList } from "@/components/plataforma/motion";
 import { cn } from "@/lib/cn";
+import { checkCpf } from "@/lib/cadastro/cpf-check";
 import { isValidCNPJ, isValidCPF, maskCNPJ, maskCPF, maskPhoneBR } from "@/lib/cadastro/masks";
 import { BUSINESS_TYPE_LABEL, formatDocument } from "@/lib/plataforma/format";
 import { useAccountSession } from "@/lib/plataforma/session";
@@ -82,6 +83,16 @@ export default function ConfiguracoesPage() {
       setDocError(documentType === "cnpj" ? "CNPJ inválido. Confira os 14 dígitos." : "CPF inválido. Confira os 11 dígitos.");
       return;
     }
+    // CPF novo ou trocado: mesma conferência dos outros cadastros.
+    if (documentType === "cpf" && digits !== (profile?.document ?? "")) {
+      setSaving(true);
+      const check = await checkCpf(digits, { fullName: profile?.fullName });
+      if (check.state === "invalid") {
+        setSaving(false);
+        setDocError(check.message);
+        return;
+      }
+    }
     setDocError(null);
     setSaving(true);
     const ok = await updateCompanyProfile({
@@ -105,7 +116,7 @@ export default function ConfiguracoesPage() {
         description="O que identifica o estabelecimento no sistema: razão social, CNPJ, endereço, contato e filiais."
       />
 
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
+      <div className="grid items-start gap-4 xl:grid-cols-[1.2fr_1fr]">
         <section className="rounded-card border border-ink-200 bg-white p-5 md:p-6">
           <header className="mb-4 flex items-center gap-2.5">
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-ink-100 text-ink-700">

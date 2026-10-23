@@ -19,6 +19,11 @@ async function authedFetch(input: string, init?: RequestInit) {
   });
 }
 
+function withTopTarget(html: string) {
+  const base = '<base target="_top">';
+  return /<head[^>]*>/i.test(html) ? html.replace(/<head([^>]*)>/i, `<head$1>${base}`) : `${base}${html}`;
+}
+
 // Resumo diário por e-mail: liga/desliga, destinatário, prévia e envio de teste.
 export function DigestSettings() {
   const { profile } = useAccountSession();
@@ -173,8 +178,9 @@ export function DigestSettings() {
         {preview && (
           <iframe
             title="Prévia do e-mail"
-            srcDoc={preview.html}
-            sandbox="allow-popups"
+            // Os links da prévia abrem a página do sistema nesta aba, e não dentro do quadro.
+            srcDoc={withTopTarget(preview.html)}
+            sandbox="allow-popups allow-top-navigation-by-user-activation"
             className="h-[62vh] w-full rounded-btn border border-ink-200 bg-surface"
           />
         )}

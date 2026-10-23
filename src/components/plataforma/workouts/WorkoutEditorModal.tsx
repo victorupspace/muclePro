@@ -18,7 +18,6 @@ import {
   CYCLE_OPTIONS,
   DEFAULT_CARDIO_EQUIPMENT,
   DEFAULT_CYCLE_MONTHS,
-  WORKOUT_TEMPLATES,
   cleanDays,
   cycleLabel,
   emptyCardio,
@@ -180,18 +179,14 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
     setActiveDay((a) => Math.max(0, a >= index ? a - 1 : a));
   }
   function applyTemplate(id: string) {
-    // Treinos padrão da academia ("academia:<id>") ou modelos prontos do sistema.
-    const own = id.startsWith("academia:") ? workoutTemplates.find((x) => `academia:${x.id}` === id) : undefined;
-    const builtIn = own ? undefined : WORKOUT_TEMPLATES.find((x) => x.id === id);
-    const t = own ?? builtIn;
+    // Treinos padrão da academia.
+    const t = workoutTemplates.find((x) => x.id === id);
     if (!t) return;
     setTitle((v) => v || t.title);
     setGoal((v) => v || t.goal || "");
-    if (own) {
-      setLevel((v) => v || own.level || "");
-      setNotes((v) => v || own.notes || "");
-      if (own.cycleMonths) changeCycle(String(own.cycleMonths));
-    }
+    setLevel((v) => v || t.level || "");
+    setNotes((v) => v || t.notes || "");
+    if (t.cycleMonths) changeCycle(String(t.cycleMonths));
     setDays(t.days.map(cloneDay));
     setActiveDay(0);
   }
@@ -449,26 +444,15 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
           <Field label="Vencimento do ciclo" hint={reviewOn ? "Lembrete na agenda de quem montou, 7 dias antes." : undefined}>
             <DatePickerField value={reviewOn} onChange={setReviewOn} min={startsOn || undefined} />
           </Field>
-          {!editing && isBlank && (
-            <Field label="Começar de um modelo">
+          {!editing && isBlank && workoutTemplates.length > 0 && (
+            <Field label="Começar de um treino padrão">
               <select value="" onChange={(e) => applyTemplate(e.target.value)} className={selectClass}>
                 <option value="">Ficha em branco</option>
-                {workoutTemplates.length > 0 && (
-                  <optgroup label="Treinos padrão da academia">
-                    {workoutTemplates.map((t) => (
-                      <option key={t.id} value={`academia:${t.id}`}>
-                        {t.title}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                <optgroup label="Modelos prontos">
-                  {WORKOUT_TEMPLATES.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.label}
-                    </option>
-                  ))}
-                </optgroup>
+                {workoutTemplates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.title}
+                  </option>
+                ))}
               </select>
             </Field>
           )}

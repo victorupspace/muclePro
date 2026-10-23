@@ -127,6 +127,8 @@ export type Staff = {
   authUserId?: string;
   fullName: string;
   cpf?: string;
+  // Registro no Conselho Regional de Educação Física (personal).
+  cref?: string;
   email?: string;
   phone?: string;
   role: StaffRole;

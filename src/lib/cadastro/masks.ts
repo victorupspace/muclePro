@@ -59,6 +59,23 @@ export function parseTimeBR(value: string) {
   return `${m[1]}:${m[2]}`;
 }
 
+const UFS = "AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO".split(" ");
+
+// CREF: número (até 6 dígitos), categoria G ou P e UF -> "012345-G/SP".
+export function maskCREF(value: string) {
+  const raw = value.toUpperCase().replace(/[^0-9A-Z]/g, "");
+  const digits = (raw.match(/^\d{0,6}/)?.[0] ?? "").slice(0, 6);
+  const rest = raw.slice(digits.length).replace(/\d/g, "");
+  const category = rest.slice(0, 1);
+  const uf = rest.slice(1, 3);
+  return digits + (category ? `-${category}` : "") + (uf ? `/${uf}` : "");
+}
+
+export function isValidCREF(value: string) {
+  const m = /^(\d{1,6})-([GP])\/([A-Z]{2})$/.exec(value.trim().toUpperCase());
+  return Boolean(m && UFS.includes(m[3]));
+}
+
 export function isValidEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim());
 }

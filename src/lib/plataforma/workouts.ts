@@ -177,7 +177,7 @@ const MUTED: [number, number, number] = [107, 114, 128];
 const LINE: [number, number, number] = [229, 231, 235];
 
 // PDF A4 para imprimir ou mandar ao aluno.
-export async function downloadWorkoutPdf(w: WorkoutProgram, student: Student, companyName: string) {
+export async function downloadWorkoutPdf(w: WorkoutProgram, student: Student, companyName: string, authorCref?: string) {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
@@ -229,7 +229,7 @@ export async function downloadWorkoutPdf(w: WorkoutProgram, student: Student, co
     w.level ? WORKOUT_LEVEL_LABEL[w.level] : null,
     `Início ${formatDateValue(w.startsOn)}`,
     w.reviewOn ? `Vale até ${formatDateValue(w.reviewOn)}${w.cycleMonths ? ` (ciclo de ${cycleLabel(w.cycleMonths)})` : ""}` : null,
-    w.authorName ? `Professor: ${w.authorName}` : null,
+    w.authorName ? `Professor: ${w.authorName}${authorCref ? ` (CREF ${authorCref})` : ""}` : null,
   ].filter(Boolean);
   doc.text(meta.join("  ·  "), margin, y);
   y += 5;
@@ -375,78 +375,3 @@ export async function downloadWorkoutPdf(w: WorkoutProgram, student: Student, co
       .replace(/^-|-$/g, "");
   doc.save(`ficha-${slug(student.fullName)}-${slug(w.title)}.pdf`);
 }
-
-const ex = (name: string, sets = "3", reps = "12", rest = "60s"): WorkoutExercise => ({ name, sets, reps, rest });
-
-// Pontos de partida: o professor ajusta carga e volume depois.
-export const WORKOUT_TEMPLATES: { id: string; label: string; title: string; goal: string; days: WorkoutDay[] }[] = [
-  {
-    id: "fullbody",
-    label: "Corpo inteiro · iniciante",
-    title: "Adaptação",
-    goal: "Adaptação e aprendizado dos movimentos",
-    days: [
-      {
-        name: "A",
-        focus: "Corpo inteiro",
-        weekdays: [1, 3, 5],
-        exercises: [
-          ex("Leg press 45°", "3", "15"),
-          ex("Supino reto com barra", "3", "12"),
-          ex("Puxada frontal", "3", "12"),
-          ex("Cadeira extensora", "3", "15"),
-          ex("Mesa flexora", "3", "15"),
-          ex("Desenvolvimento com halteres", "3", "12"),
-          ex("Prancha", "3", "30s", "45s"),
-        ],
-      },
-    ],
-  },
-  {
-    id: "abc",
-    label: "ABC · hipertrofia",
-    title: "Hipertrofia ABC",
-    goal: "Ganho de massa muscular",
-    days: [
-      {
-        name: "A",
-        focus: "Peito, ombros e tríceps",
-        weekdays: [1, 4],
-        exercises: [
-          ex("Supino reto com barra", "4", "10", "90s"),
-          ex("Supino inclinado com halteres", "3", "10", "90s"),
-          ex("Crucifixo com halteres", "3", "12"),
-          ex("Desenvolvimento com halteres", "3", "10", "90s"),
-          ex("Elevação lateral", "3", "12"),
-          ex("Tríceps corda", "3", "12"),
-        ],
-      },
-      {
-        name: "B",
-        focus: "Costas e bíceps",
-        weekdays: [2, 5],
-        exercises: [
-          ex("Puxada frontal", "4", "10", "90s"),
-          ex("Remada curvada", "3", "10", "90s"),
-          ex("Remada unilateral (serrote)", "3", "12"),
-          ex("Crucifixo inverso", "3", "15"),
-          ex("Rosca direta", "3", "10"),
-          ex("Rosca martelo", "3", "12"),
-        ],
-      },
-      {
-        name: "C",
-        focus: "Pernas e core",
-        weekdays: [3, 6],
-        exercises: [
-          ex("Agachamento livre", "4", "10", "120s"),
-          ex("Leg press 45°", "3", "12", "90s"),
-          ex("Cadeira extensora", "3", "12"),
-          ex("Mesa flexora", "3", "12"),
-          ex("Panturrilha em pé", "4", "15", "45s"),
-          ex("Abdominal supra", "3", "20", "45s"),
-        ],
-      },
-    ],
-  },
-];

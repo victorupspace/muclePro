@@ -55,6 +55,7 @@ export type StaffRow = {
   auth_user_id: string | null;
   full_name: string;
   cpf: string | null;
+  cref: string | null;
   email: string | null;
   phone: string | null;
   role: StaffRole;
@@ -189,6 +190,7 @@ export const mapStaff = (r: StaffRow): Staff => ({
   authUserId: r.auth_user_id ?? undefined,
   fullName: r.full_name,
   cpf: r.cpf ?? undefined,
+  cref: r.cref ?? undefined,
   email: r.email ?? undefined,
   phone: r.phone ?? undefined,
   role: r.role,

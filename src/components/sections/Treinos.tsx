@@ -22,7 +22,7 @@ const STEPS = [
   {
     icon: <ClipboardList size={17} />,
     title: "Ficha A, B, C por dia da semana",
-    desc: "Monte do zero ou a partir de modelos, com séries, carga e descanso. Biblioteca de exercícios inclusa.",
+    desc: "Monte do zero ou a partir dos treinos padrão da academia, com séries, carga, descanso e cardio.",
   },
   {
     icon: <Send size={17} />,

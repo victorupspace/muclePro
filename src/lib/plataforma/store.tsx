@@ -128,6 +128,7 @@ export type NewStaff = {
   role: StaffRole;
   roleLabel?: string;
   cpf?: string;
+  cref?: string;
   email?: string;
   phone?: string;
   unitId?: string;
@@ -791,6 +792,7 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
     if (input.role !== undefined) row.role = input.role;
     if (input.roleLabel !== undefined) row.role_label = nullable(input.roleLabel);
     if (input.cpf !== undefined) row.cpf = nullable(input.cpf);
+    if (input.cref !== undefined) row.cref = nullable(input.cref);
     if (input.email !== undefined) row.email = nullable(input.email);
     if (input.phone !== undefined) row.phone = nullable(input.phone);
     if (input.unitId !== undefined) row.unit_id = nullable(input.unitId);

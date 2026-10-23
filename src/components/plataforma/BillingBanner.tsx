@@ -37,7 +37,7 @@ export function billingNotice(b: AccountBilling | undefined): Notice | null {
         title: left <= 0 ? "Seu teste grátis termina hoje" : `Seu teste grátis termina em ${left} dia${left === 1 ? "" : "s"}`,
         body: b.planName
           ? `Depois dele começa o plano ${b.planName}${b.price ? ` de ${formatCurrencyDetailed(b.price)}` : ""}.`
-          : "Fale com a equipe musclePro para escolher seu plano e continuar sem interrupção.",
+          : "Escolha seu plano para continuar sem interrupção. Nada é cobrado antes do fim do teste.",
       };
     }
   }

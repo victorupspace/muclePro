@@ -93,6 +93,11 @@ export default function EquipePage() {
               {!m.active && <span className="mr-1.5 font-bold uppercase tracking-[0.08em] text-ink-400 2xl:hidden">Inativo ·</span>}
               {m.email ?? m.phone ?? "Sem contato"}
             </p>
+            {m.role === "personal" && (
+              <p className={cn("truncate text-[11px] font-semibold", m.cref ? "text-ink-600" : "text-warning-800")}>
+                {m.cref ? `CREF ${m.cref}` : "CREF não informado"}
+              </p>
+            )}
           </div>
         </div>
       ),

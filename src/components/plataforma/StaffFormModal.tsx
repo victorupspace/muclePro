@@ -5,7 +5,8 @@ import { DatePickerField } from "./DatePickerField";
 import { Field, inputClass, ModalFooter, SectionLabel, selectClass, textareaClass, Toggle } from "./FormKit";
 import { Modal } from "./Modal";
 import { useToast } from "./Toast";
-import { maskCPF, maskPhoneBR } from "@/lib/cadastro/masks";
+import { cn } from "@/lib/cn";
+import { isValidCREF, maskCPF, maskCREF, maskPhoneBR } from "@/lib/cadastro/masks";
 import { STAFF_ROLE_LABEL } from "@/lib/plataforma/format";
 import { usePlataformaStore } from "@/lib/plataforma/store";
 import type { Staff, StaffRole } from "@/lib/plataforma/types";
@@ -43,6 +44,8 @@ export function StaffFormModal({
   const [role, setRole] = useState<StaffRole>("recepcao");
   const [roleLabel, setRoleLabel] = useState("");
   const [cpf, setCpf] = useState("");
+  const [cref, setCref] = useState("");
+  const [crefError, setCrefError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [unitId, setUnitId] = useState("");
@@ -62,6 +65,8 @@ export function StaffFormModal({
     setRole(member?.role ?? "recepcao");
     setRoleLabel(member?.roleLabel ?? "");
     setCpf(member?.cpf ? maskCPF(member.cpf) : "");
+    setCref(member?.cref ?? "");
+    setCrefError(null);
     setEmail(member?.email ?? "");
     setPhone(member?.phone ?? "");
     setUnitId(member?.unitId ?? "");
@@ -87,12 +92,18 @@ export function StaffFormModal({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!fullName.trim()) return;
+    if (role === "personal") {
+      if (!cref.trim()) return setCrefError("Informe o CREF do personal.");
+      if (!isValidCREF(cref)) return setCrefError("CREF inválido. Use número, categoria e UF, ex.: 012345-G/SP.");
+    }
+    setCrefError(null);
     setSubmitting(true);
     const payload = {
       fullName: fullName.trim(),
       role,
       roleLabel: role === "outro" ? roleLabel.trim() : "",
       cpf: cpf.replace(/\D/g, ""),
+      ...(role === "personal" ? { cref: cref.trim().toUpperCase() } : {}),
       email: email.trim(),
       phone: phone.trim(),
       unitId,
@@ -176,6 +187,29 @@ export function StaffFormModal({
               </Field>
             )}
           </div>
+          {role === "personal" && (
+            <div>
+              <Field label="CREF" required hint={crefError ? undefined : "Registro no Conselho Regional de Educação Física. Ex.: 012345-G/SP."}>
+                <input
+                  value={cref}
+                  onChange={(e) => {
+                    setCref(maskCREF(e.target.value));
+                    setCrefError(null);
+                  }}
+                  onBlur={() => cref && !isValidCREF(cref) && setCrefError("CREF incompleto. Use número, categoria (G ou P) e UF, ex.: 012345-G/SP.")}
+                  placeholder="012345-G/SP"
+                  autoCapitalize="characters"
+                  aria-invalid={Boolean(crefError)}
+                  className={cn(inputClass, "uppercase", crefError && "border-danger-300")}
+                />
+              </Field>
+              {crefError && (
+                <p role="alert" className="mt-1 text-[11.5px] font-semibold text-danger-600">
+                  {crefError}
+                </p>
+              )}
+            </div>
+          )}
           {role === "outro" && (
             <Field label="CPF">
               <input

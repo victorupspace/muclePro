@@ -370,7 +370,7 @@ export default function TreinosPage() {
             rowKey={({ workout }) => workout.id}
             actions={({ workout, student }) => (
               <>
-                <TableButton onClick={() => void downloadWorkoutPdf(workout, student, companyName)}>
+                <TableButton onClick={() => void downloadWorkoutPdf(workout, student, companyName, staff.find((m) => m.id === workout.authorStaffId)?.cref)}>
                   <Download className="h-3.5 w-3.5" strokeWidth={2.2} />
                   PDF
                 </TableButton>
@@ -385,7 +385,7 @@ export default function TreinosPage() {
                 title={loading ? "Carregando fichas…" : workouts.length === 0 ? "Nenhuma ficha montada ainda" : "Nenhuma ficha com esses filtros"}
                 description={
                   workouts.length === 0 && canEdit
-                    ? "Comece pelos alunos sem ficha: dá para montar a partir de um modelo pronto e mandar pelo WhatsApp."
+                    ? "Comece pelos alunos sem ficha. Crie treinos padrão para montar as fichas mais rápido."
                     : "Ajuste os filtros para ver outras fichas."
                 }
               />

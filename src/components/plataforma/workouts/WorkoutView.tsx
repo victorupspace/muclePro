@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Archive, ArchiveRestore, Copy, Download, Dumbbell, MessageCircle, Pencil, Send, Trash2 } from "lucide-react";
 import { CardioList } from "./CardioList";
 import { cn } from "@/lib/cn";
+import { usePlataformaStore } from "@/lib/plataforma/store";
 import { WORKOUT_LEVEL_LABEL, daysFromToday, firstName, formatDateTime, formatDateValue, formatRelative, weekdaysLabel, whatsappLink } from "@/lib/plataforma/format";
 import type { Student, WorkoutLog, WorkoutProgram } from "@/lib/plataforma/types";
 import {
@@ -79,6 +80,7 @@ export function WorkoutView({
 }: Props) {
   const [open, setOpen] = useState(defaultOpen);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const { staff } = usePlataformaStore();
   const total = exerciseCount(workout);
   const cardioTotal = workout.days.reduce((n, d) => n + (d.cardio?.length ?? 0), 0);
   const isDraft = !workout.active && !workout.publishedAt;
@@ -101,7 +103,8 @@ export function WorkoutView({
 
   async function pdf() {
     setPdfBusy(true);
-    await downloadWorkoutPdf(workout, student, companyName).catch(() => null);
+    const authorCref = staff.find((m) => m.id === workout.authorStaffId)?.cref;
+    await downloadWorkoutPdf(workout, student, companyName, authorCref).catch(() => null);
     setPdfBusy(false);
   }
 

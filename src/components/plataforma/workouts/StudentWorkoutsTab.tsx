@@ -133,7 +133,7 @@ export function StudentWorkoutsTab({ student }: { student: Student }) {
           <p className="mt-3 text-[14px] font-semibold text-ink-900">Nenhuma ficha de treino</p>
           <p className="mt-1 max-w-[380px] text-[12.5px] leading-[1.55] text-ink-500">
             {canEdit
-              ? "Monte os treinos A, B e C com séries, repetições e carga. Dá para começar de um modelo pronto."
+              ? "Monte os treinos A, B e C com séries, repetições e carga, ou comece de um treino padrão da academia."
               : "Quem tem permissão de treinos (como o personal) monta a ficha deste aluno."}
           </p>
         </div>

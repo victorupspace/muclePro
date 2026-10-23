@@ -63,11 +63,11 @@ export default function AssinaturaPage() {
 
       <div className="grid gap-4 lg:grid-cols-3">
         <InfoCard icon={<BadgeCheck className="h-4 w-4" strokeWidth={2.2} />} label="Plano">
-          <p className="text-[20px] font-bold tracking-[-0.015em] text-ink-900">{billing?.planName ?? "A definir"}</p>
+          <p className="text-[20px] font-bold tracking-[-0.015em] text-ink-900">{billing?.planName ?? "Nenhum plano escolhido"}</p>
           <p className="mt-0.5 text-[12.5px] text-ink-500">
             {billing?.price !== undefined && billing.planMonths
               ? `${formatCurrencyDetailed(billing.price)} ${billing.planMonths === 1 ? "por mês" : `a cada ${billing.planMonths} meses`}`
-              : "O plano é ativado pela equipe musclePro."}
+              : "Escolha abaixo. A cobrança só começa no fim do teste grátis."}
           </p>
         </InfoCard>
         <InfoCard icon={<CalendarClock className="h-4 w-4" strokeWidth={2.2} />} label={billing?.status === "trial" ? "Teste grátis" : "Próximo vencimento"}>

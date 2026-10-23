@@ -20,7 +20,7 @@ export default function AdminLoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (hydrated && session) router.replace("/internal-musclepro-admin/visao-geral");
+    if (hydrated && session) router.replace("/admin/backoffice/visao-geral");
   }, [hydrated, session, router]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -34,7 +34,7 @@ export default function AdminLoginPage() {
       setError(result.reason);
       return;
     }
-    router.replace("/internal-musclepro-admin/visao-geral");
+    router.replace("/admin/backoffice/visao-geral");
   }
 
   const canSubmit = username.length > 0 && password.length > 0 && !submitting;

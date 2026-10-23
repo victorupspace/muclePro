@@ -10,7 +10,7 @@ export default function AdminIndexPage() {
 
   useEffect(() => {
     if (!hydrated) return;
-    router.replace(session ? "/internal-musclepro-admin/visao-geral" : "/internal-musclepro-admin/login");
+    router.replace(session ? "/admin/backoffice/visao-geral" : "/admin/backoffice/login");
   }, [hydrated, session, router]);
 
   return null;

@@ -24,13 +24,13 @@ import { cn } from "@/lib/cn";
 import { EASE } from "@/lib/motion";
 
 const NAV = [
-  { label: "Visão geral", href: "/internal-musclepro-admin/visao-geral", icon: LayoutDashboard },
-  { label: "Leads da landing", href: "/internal-musclepro-admin/leads-landing", icon: Inbox },
-  { label: "Contas novas", href: "/internal-musclepro-admin/contas-novas", icon: UserPlus },
-  { label: "Contas ativas", href: "/internal-musclepro-admin/contas-ativas", icon: UserCheck },
-  { label: "Pagamentos", href: "/internal-musclepro-admin/pagamentos", icon: CreditCard },
-  { label: "Notificações", href: "/internal-musclepro-admin/notificacoes", icon: Bell },
-  { label: "Configurações", href: "/internal-musclepro-admin/configuracoes", icon: Settings },
+  { label: "Visão geral", href: "/admin/backoffice/visao-geral", icon: LayoutDashboard },
+  { label: "Leads da landing", href: "/admin/backoffice/leads-landing", icon: Inbox },
+  { label: "Contas novas", href: "/admin/backoffice/contas-novas", icon: UserPlus },
+  { label: "Contas ativas", href: "/admin/backoffice/contas-ativas", icon: UserCheck },
+  { label: "Pagamentos", href: "/admin/backoffice/pagamentos", icon: CreditCard },
+  { label: "Notificações", href: "/admin/backoffice/notificacoes", icon: Bell },
+  { label: "Configurações", href: "/admin/backoffice/configuracoes", icon: Settings },
 ];
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
@@ -41,7 +41,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
-    if (hydrated && !session) router.replace("/internal-musclepro-admin/login");
+    if (hydrated && !session) router.replace("/admin/backoffice/login");
   }, [hydrated, session, router]);
 
   useEffect(() => {
@@ -60,7 +60,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   async function handleSignOut() {
     await signOut();
-    router.replace("/internal-musclepro-admin/login");
+    router.replace("/admin/backoffice/login");
   }
 
   return (
@@ -110,7 +110,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </button>
 
           <Link
-            href="/internal-musclepro-admin/visao-geral"
+            href="/admin/backoffice/visao-geral"
             className="inline-flex shrink-0 items-center lg:hidden"
             aria-label="Backoffice musclePro"
           >
@@ -166,7 +166,7 @@ function SidebarContent({
   return (
     <>
       <div className="flex items-center justify-between border-b border-ink-200 px-5 py-5">
-        <Link href="/internal-musclepro-admin/visao-geral" className="inline-flex">
+        <Link href="/admin/backoffice/visao-geral" className="inline-flex">
           <Logo variant="dark" className="scale-[0.7] origin-left" />
         </Link>
         {onClose && (

@@ -9,7 +9,7 @@ Cobre a operação administrativa do negócio em quatro frentes: **estrutura**
 (visão consolidada, com a inadimplência em destaque).
 
 Áreas: home page (marketing), cadastro/aprovação de contas, plataforma do
-estabelecimento (`/plataforma`) e backoffice interno (`/internal-musclepro-admin`).
+estabelecimento (`/plataforma`) e backoffice interno (`/admin/backoffice`).
 
 ## Stack
 
@@ -50,7 +50,7 @@ src/
     (marketing)/           Home page
     (auth)/                Login, cadastro, definição de senha
     plataforma/            Área logada: dashboard, alunos, equipe, planos, tarefas, configurações
-    internal-musclepro-admin/  Backoffice interno
+    admin/backoffice/  Backoffice interno
     api/                   Rotas de API (aprovação de contas, senha)
   components/
     sections/              Seções da home

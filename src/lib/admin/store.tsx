@@ -260,7 +260,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
         return null;
       }
 
-      const response = await fetch(`/api/internal-musclepro-admin/accounts/${id}/approve`, {
+      const response = await fetch(`/api/admin/backoffice/accounts/${id}/approve`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -293,7 +293,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
         return null;
       }
 
-      const response = await fetch(`/api/internal-musclepro-admin/accounts/${id}/password-link`, {
+      const response = await fetch(`/api/admin/backoffice/accounts/${id}/password-link`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,

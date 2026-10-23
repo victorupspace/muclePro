@@ -57,14 +57,14 @@ export default function VisaoGeralPage() {
             hint="Aguardando aprovação"
             highlight={novas.length > 0}
             icon={<UserPlus className="h-3.5 w-3.5" strokeWidth={2.2} />}
-            href="/internal-musclepro-admin/contas-novas"
+            href="/admin/backoffice/contas-novas"
           />
           <StatCard
             label="Contas aprovadas"
             value={aprovadas.length}
             hint="Aprovadas pelo time"
             icon={<UserCheck className="h-3.5 w-3.5" strokeWidth={2.2} />}
-            href="/internal-musclepro-admin/contas-ativas"
+            href="/admin/backoffice/contas-ativas"
           />
           <StatCard
             label="Leads da landing"
@@ -72,7 +72,7 @@ export default function VisaoGeralPage() {
             hint="Leads aguardando contato"
             highlight={landingAguardando > 0}
             icon={<Inbox className="h-3.5 w-3.5" strokeWidth={2.2} />}
-            href="/internal-musclepro-admin/leads-landing"
+            href="/admin/backoffice/leads-landing"
           />
         </div>
       </section>
@@ -98,7 +98,7 @@ export default function VisaoGeralPage() {
             label="Pagamentos em dia"
             value={pagamentosEmDia}
             icon={<CreditCard className="h-3.5 w-3.5" strokeWidth={2.2} />}
-            href="/internal-musclepro-admin/pagamentos"
+            href="/admin/backoffice/pagamentos"
           />
           <StatCard
             label="Pagamentos pendentes"
@@ -106,7 +106,7 @@ export default function VisaoGeralPage() {
             highlight={pagamentosPendentes > 0}
             hint="Pendentes ou atrasados"
             icon={<TimerReset className="h-3.5 w-3.5" strokeWidth={2.2} />}
-            href="/internal-musclepro-admin/pagamentos"
+            href="/admin/backoffice/pagamentos"
           />
         </div>
       </section>

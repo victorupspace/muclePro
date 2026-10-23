@@ -40,7 +40,7 @@ const TEAM_LOG: Item = { label: "Atividade da equipe", href: "/plataforma/ativid
 
 const SECONDARY: Item[] = [
   { label: "Configurações", href: "/plataforma/configuracoes", icon: Settings },
-  { label: "Fale conosco", href: "mailto:contato@musclepro.com.br", icon: HeadphonesIcon, external: true },
+  { label: "Fale conosco", href: "/plataforma/fale-conosco", icon: HeadphonesIcon },
 ];
 
 type Props = {

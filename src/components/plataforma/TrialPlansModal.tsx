@@ -90,13 +90,14 @@ export function TrialPlansModal() {
       }
       footer={
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <a
-            href={`mailto:contato@musclepro.com.br?subject=${encodeURIComponent(`Planos musclePro · ${profile.companyName ?? ""}`)}`}
+          <Link
+            href="/plataforma/fale-conosco"
+            onClick={() => setOpen(false)}
             className="inline-flex items-center justify-center gap-1.5 text-[12.5px] font-semibold text-ink-500 hover:text-ink-800"
           >
             <Mail className="h-3.5 w-3.5" strokeWidth={2.2} />
-            Dúvidas? contato@musclepro.com.br
-          </a>
+            Dúvidas? Fale com a gente
+          </Link>
           <div className="flex flex-col-reverse gap-2 sm:flex-row">
             <Link
               href="/plataforma/assinatura"

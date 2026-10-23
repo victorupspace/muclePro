@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Bell,
   CreditCard,
+  Headphones,
   Inbox,
   LayoutDashboard,
   LogOut,
@@ -29,6 +30,7 @@ const NAV = [
   { label: "Contas novas", href: "/admin/backoffice/contas-novas", icon: UserPlus },
   { label: "Contas ativas", href: "/admin/backoffice/contas-ativas", icon: UserCheck },
   { label: "Pagamentos", href: "/admin/backoffice/pagamentos", icon: CreditCard },
+  { label: "Fale conosco", href: "/admin/backoffice/fale-conosco", icon: Headphones },
   { label: "Notificações", href: "/admin/backoffice/notificacoes", icon: Bell },
   { label: "Configurações", href: "/admin/backoffice/configuracoes", icon: Settings },
 ];

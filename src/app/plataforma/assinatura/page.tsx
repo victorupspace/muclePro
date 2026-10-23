@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect } from "react";
 import { BadgeCheck, CalendarClock, Lock, Mail, ShieldAlert, Wallet } from "lucide-react";
 import { EmptyState } from "@/components/admin/EmptyState";
@@ -11,7 +12,6 @@ import { daysFromToday, formatCurrencyDetailed, formatDateValue, toDateValue } f
 import { useAccountSession } from "@/lib/plataforma/session";
 import { usePlataformaStore } from "@/lib/plataforma/store";
 
-const SUPPORT_EMAIL = "contato@musclepro.com.br";
 
 export default function AssinaturaPage() {
   const { profile, refreshProfile } = useAccountSession();
@@ -100,12 +100,9 @@ export default function AssinaturaPage() {
             Por enquanto os pagamentos são combinados e confirmados pela equipe musclePro. Em breve você paga por Pix, boleto ou cartão aqui
             mesmo.
           </p>
-          <a
-            href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(`Assinatura musclePro · ${company}`)}`}
-            className="mt-2 inline-flex text-[12.5px] font-semibold text-brand hover:underline"
-          >
-            {SUPPORT_EMAIL}
-          </a>
+          <Link href="/plataforma/fale-conosco" className="mt-2 inline-flex text-[12.5px] font-semibold text-brand hover:underline">
+            Falar com a equipe musclePro
+          </Link>
         </InfoCard>
       </div>
 

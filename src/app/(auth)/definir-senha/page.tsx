@@ -20,6 +20,8 @@ export default function DefinirSenhaPage() {
   const [submitting, setSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [setupToken, setSetupToken] = useState<string | null>(null);
+  const [invite, setInvite] = useState<{ email: string; companyName: string | null; kind: "conta" | "equipe" } | null>(null);
+  const [linkProblem, setLinkProblem] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -42,8 +44,21 @@ export default function DefinirSenhaPage() {
       }
 
       if (manualToken) {
+        // O token fica no endereço até a senha ser criada: recarregar a página
+        // ou abrir em outro navegador continua funcionando.
         setSetupToken(manualToken);
-        window.history.replaceState({}, document.title, "/definir-senha");
+        const response = await fetch(`/api/auth/setup-password?token=${encodeURIComponent(manualToken)}`).catch(() => null);
+        const result = (await response?.json().catch(() => null)) as
+          | { ok?: boolean; error?: string; email?: string; companyName?: string | null; kind?: "conta" | "equipe" }
+          | null;
+        if (!mounted) return;
+        if (!response?.ok || !result?.email) {
+          setGlobalError(result?.error ?? "Não foi possível validar o link. Confira sua internet e abra o link de novo.");
+          setLinkProblem(Boolean(result?.error));
+          setHydrating(false);
+          return;
+        }
+        setInvite({ email: result.email, companyName: result.companyName ?? null, kind: result.kind ?? "conta" });
         setReady(true);
         setHydrating(false);
         return;
@@ -83,7 +98,8 @@ export default function DefinirSenhaPage() {
       if (!mounted) return;
 
       if (!data.session) {
-        setGlobalError("Abra esta página pelo link gerado no backoffice.");
+        setGlobalError("Abra esta página pelo link que você recebeu por WhatsApp ou e-mail. Ele começa com /definir-senha?token=.");
+        setLinkProblem(true);
         setHydrating(false);
         return;
       }
@@ -143,6 +159,8 @@ export default function DefinirSenhaPage() {
         return;
       }
 
+      // Outra pessoa logada neste navegador não pode continuar na sessão.
+      await supabase.auth.signOut().catch(() => null);
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: result.email,
         password,
@@ -196,7 +214,11 @@ export default function DefinirSenhaPage() {
             Defina sua senha.
           </h1>
           <p className="mt-3 text-[14px] leading-[1.6] text-ink-500">
-            Crie uma senha usando o link de acesso que você recebeu.
+            {invite
+              ? `${invite.companyName ? `${invite.companyName} · ` : ""}Depois você entra com o e-mail `
+              : "Crie uma senha usando o link de acesso que você recebeu."}
+            {invite && <span className="font-semibold text-ink-900">{invite.email}</span>}
+            {invite && "."}
           </p>
         </div>
 
@@ -207,9 +229,21 @@ export default function DefinirSenhaPage() {
           </div>
         )}
 
-        {hydrating ? (
+        {linkProblem && !hydrating ? (
+          <div className="mt-6 space-y-2.5">
+            <a
+              href="/login"
+              className="inline-flex h-11 w-full items-center justify-center rounded-btn border border-ink-200 bg-white text-[13.5px] font-semibold text-ink-800 transition-colors hover:border-ink-400"
+            >
+              Já tenho senha: ir para o login
+            </a>
+            <p className="text-center text-[12px] leading-[1.5] text-ink-500">
+              Precisa de um link novo? Responda a mensagem em que você recebeu este link.
+            </p>
+          </div>
+        ) : hydrating ? (
           <div className="mt-7 rounded-card border border-ink-200 bg-white px-4 py-4 text-[13px] text-ink-500">
-            Validando seu convite...
+            Conferindo seu link...
           </div>
         ) : (
           <div className="mt-7 space-y-3">
@@ -234,6 +268,7 @@ export default function DefinirSenhaPage() {
           </div>
         )}
 
+        {!linkProblem && (
         <div className="mt-auto pt-10">
           <motion.button
             type="submit"
@@ -253,6 +288,7 @@ export default function DefinirSenhaPage() {
             )}
           </motion.button>
         </div>
+        )}
       </motion.form>
     </AuthShell>
   );

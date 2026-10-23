@@ -9,6 +9,9 @@ export type AccountAccessRow = {
   auth_user_id: string | null;
 };
 
+// Link para criar a senha: vale 3 dias e pode ser usado até 3 vezes.
+export const SETUP_LINK_TTL_MS = 3 * 24 * 60 * 60 * 1000;
+
 export type GeneratedAccessLink = {
   authUserId: string;
   actionLink: string;
@@ -25,9 +28,11 @@ export async function generateManualAccessLink(
 ): Promise<GeneratedAccessLink> {
   const adminClient = createSupabaseAdminClient();
   const authUserId = await ensureAuthUser(account);
-  const token = randomBytes(32).toString("base64url");
+  // Hexadecimal: só letras e números, para o link não quebrar no WhatsApp,
+  // no e-mail ou ao ser copiado.
+  const token = randomBytes(24).toString("hex");
   const tokenHash = hashToken(token);
-  const expiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
+  const expiresAt = new Date(Date.now() + SETUP_LINK_TTL_MS).toISOString();
 
   const { error } = await adminClient.from("password_setup_tokens").insert({
     account_id: account.id,

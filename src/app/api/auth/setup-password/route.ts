@@ -13,6 +13,81 @@ type SetupTokenRow = {
   use_count: number;
 };
 
+type CheckResult =
+  | { ok: true; row: SetupTokenRow; loginEmail: string; companyName: string | null }
+  | { ok: false; status: number; reason: "invalido" | "expirado" | "usado" | "desativado" | "pendente"; error: string };
+
+// Confere o link de criar senha: existe, ainda vale, não foi usado demais e a
+// conta (ou o funcionário) continua liberada.
+async function checkSetupToken(token: string): Promise<CheckResult> {
+  const adminClient = createSupabaseAdminClient();
+  const { data, error } = await adminClient
+    .from("password_setup_tokens")
+    .select("id,created_at,account_id,staff_id,auth_user_id,expires_at,used_at,use_count")
+    .eq("token_hash", hashPasswordSetupToken(token))
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+
+  const row = data as SetupTokenRow | null;
+  const who = row?.staff_id ? "ao gestor da academia" : "ao time musclePro";
+  const askNew = `Peça um novo link ${who}.`;
+  if (!row) {
+    return { ok: false, status: 400, reason: "invalido", error: `Este link não é válido. Confira se ele foi copiado inteiro ou peça um novo ${who}.` };
+  }
+  if (row.used_at || row.use_count >= 3) {
+    return { ok: false, status: 400, reason: "usado", error: `Este link já foi usado. Entre com seu e-mail e senha ou peça um novo ${who}.` };
+  }
+  if (new Date(row.expires_at).getTime() < Date.now()) {
+    return { ok: false, status: 400, reason: "expirado", error: `Este link venceu. ${askNew}` };
+  }
+
+  if (row.staff_id) {
+    const { data: staff, error: staffError } = await adminClient
+      .from("staff")
+      .select("id,active,auth_user_id,email,accounts!inner(status,active,company_name)")
+      .eq("id", row.staff_id)
+      .eq("auth_user_id", row.auth_user_id)
+      .maybeSingle();
+    if (staffError) throw new Error(staffError.message);
+    const staffAccount = (staff as { accounts?: { status: string; active: boolean; company_name: string | null } } | null)?.accounts;
+    if (!staff || !staff.active || staffAccount?.status !== "criada" || !staffAccount.active) {
+      return { ok: false, status: 403, reason: "desativado", error: "Este acesso foi desativado. Fale com o gestor da academia." };
+    }
+    return { ok: true, row, loginEmail: staff.email, companyName: staffAccount.company_name };
+  }
+
+  const { data: account, error: accountError } = await adminClient
+    .from("accounts")
+    .select("id,status,active,auth_user_id,email,company_name")
+    .eq("id", row.account_id)
+    .eq("auth_user_id", row.auth_user_id)
+    .maybeSingle();
+  if (accountError) throw new Error(accountError.message);
+  if (!account || account.status !== "criada" || account.active !== true) {
+    return { ok: false, status: 403, reason: "pendente", error: "Esta conta ainda não foi liberada. Fale com o time musclePro." };
+  }
+  return { ok: true, row, loginEmail: account.email, companyName: account.company_name };
+}
+
+// Valida o link quando a página abre, antes de a pessoa digitar a senha.
+export async function GET(req: NextRequest) {
+  try {
+    const token = req.nextUrl.searchParams.get("token")?.trim();
+    if (!token) return NextResponse.json({ error: "Link incompleto.", reason: "invalido" }, { status: 400 });
+    const checked = await checkSetupToken(token);
+    if (!checked.ok) return NextResponse.json({ error: checked.error, reason: checked.reason }, { status: checked.status });
+    return NextResponse.json({
+      ok: true,
+      email: checked.loginEmail,
+      companyName: checked.companyName,
+      kind: checked.row.staff_id ? "equipe" : "conta",
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Erro inesperado.";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as { token?: string; password?: string };
@@ -28,77 +103,9 @@ export async function POST(req: NextRequest) {
     }
 
     const adminClient = createSupabaseAdminClient();
-    const tokenHash = hashPasswordSetupToken(token);
-
-    const { data: setupToken, error: tokenError } = await adminClient
-      .from("password_setup_tokens")
-      .select("id,created_at,account_id,staff_id,auth_user_id,expires_at,used_at,use_count")
-      .eq("token_hash", tokenHash)
-      .maybeSingle();
-
-    if (tokenError) {
-      return NextResponse.json({ error: tokenError.message }, { status: 500 });
-    }
-
-    const row = setupToken as SetupTokenRow | null;
-    const hardExpiresAt = row
-      ? Math.min(
-          new Date(row.expires_at).getTime(),
-          new Date(row.created_at).getTime() + 12 * 60 * 60 * 1000,
-        )
-      : 0;
-
-    if (!row || row.used_at || row.use_count >= 3 || hardExpiresAt < Date.now()) {
-      return NextResponse.json(
-        {
-          error: row?.staff_id
-            ? "Link inválido ou expirado. Peça um novo convite ao gestor da academia."
-            : "Link inválido ou expirado. Solicite um novo link ao time musclePro.",
-        },
-        { status: 400 },
-      );
-    }
-
-    // Convite de funcionário: o vínculo com o funcionário e a conta precisam
-    // continuar valendo no momento do aceite.
-    let loginEmail: string | null = null;
-    if (row.staff_id) {
-      const { data: staff, error: staffError } = await adminClient
-        .from("staff")
-        .select("id,active,auth_user_id,email,accounts!inner(status,active)")
-        .eq("id", row.staff_id)
-        .eq("auth_user_id", row.auth_user_id)
-        .maybeSingle();
-
-      if (staffError) {
-        return NextResponse.json({ error: staffError.message }, { status: 500 });
-      }
-
-      const staffAccount = (staff as { accounts?: { status: string; active: boolean } } | null)?.accounts;
-      if (!staff || !staff.active || staffAccount?.status !== "criada" || !staffAccount.active) {
-        return NextResponse.json(
-          { error: "Este acesso foi desativado. Fale com o gestor da academia." },
-          { status: 403 },
-        );
-      }
-      loginEmail = staff.email;
-    } else {
-      const { data: account, error: accountError } = await adminClient
-        .from("accounts")
-        .select("id,status,active,auth_user_id,email")
-        .eq("id", row.account_id)
-        .eq("auth_user_id", row.auth_user_id)
-        .maybeSingle();
-
-      if (accountError) {
-        return NextResponse.json({ error: accountError.message }, { status: 500 });
-      }
-
-      if (!account || account.status !== "criada" || account.active !== true) {
-        return NextResponse.json({ error: "Conta ainda não liberada." }, { status: 403 });
-      }
-      loginEmail = account.email;
-    }
+    const checked = await checkSetupToken(token);
+    if (!checked.ok) return NextResponse.json({ error: checked.error, reason: checked.reason }, { status: checked.status });
+    const { row, loginEmail } = checked;
 
     const { error: updateUserError } = await adminClient.auth.admin.updateUserById(row.auth_user_id, {
       password,
@@ -106,7 +113,11 @@ export async function POST(req: NextRequest) {
     });
 
     if (updateUserError) {
-      return NextResponse.json({ error: updateUserError.message }, { status: 500 });
+      console.error("setup password", updateUserError);
+      return NextResponse.json(
+        { error: "Não foi possível salvar a senha. Tente de novo ou use outra senha." },
+        { status: 500 },
+      );
     }
 
     const now = new Date().toISOString();

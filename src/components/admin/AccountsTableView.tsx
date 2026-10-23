@@ -375,7 +375,7 @@ function AccessLinkDialog({
   const first = accountName.trim().split(/\s+/)[0];
   const message =
     kind === "aprovacao"
-      ? `Olá, ${first}! O cadastro ${companyName ? `da ${companyName} ` : ""}no musclePro foi aprovado.\n\nCrie sua senha por este link: ${url}\n\nDepois é só entrar com o e-mail ${email ?? ""}. Sua conta começa com 14 dias de teste grátis e, ao entrar, você já vê os planos disponíveis.\n\nEquipe musclePro`
+      ? `Olá, ${first}! O cadastro ${companyName ? `da ${companyName} ` : ""}no musclePro foi aprovado.\n\nCrie sua senha por este link (vale por 3 dias):\n${url}\n\nDepois é só entrar com o e-mail ${email ?? ""}. Sua conta começa com 14 dias de teste grátis e, ao entrar, você já vê os planos disponíveis.\n\nEquipe musclePro`
       : `Olá, ${first}! Segue o link para redefinir sua senha do musclePro: ${url}\n\nEquipe musclePro`;
   const subject = kind === "aprovacao" ? "Seu cadastro no musclePro foi aprovado" : "Redefinição de senha do musclePro";
   const phoneDigits = (phone ?? "").replace(/\D/g, "");

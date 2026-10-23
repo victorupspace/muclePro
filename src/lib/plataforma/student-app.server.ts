@@ -104,7 +104,8 @@ export async function inviteStudentApp(req: NextRequest, requester: AppRequester
   // Um link novo invalida os anteriores ainda não usados.
   await revokeOpenLinks(student.id, now);
 
-  const token = randomBytes(24).toString("base64url");
+  // Hexadecimal: o link não quebra no WhatsApp nem ao ser copiado.
+  const token = randomBytes(24).toString("hex");
   const expiresAt = new Date(now.getTime() + LINK_TTL_MS).toISOString();
   const { error } = await admin.from("student_app_tokens").insert({
     account_id: student.account_id,

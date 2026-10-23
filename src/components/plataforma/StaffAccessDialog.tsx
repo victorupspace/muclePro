@@ -50,7 +50,7 @@ export function StaffAccessDialog({ open, onClose, member }: { open: boolean; on
     setBusy(null);
     if (result) {
       setInvite(result);
-      push({ tone: "success", title: "Link de acesso gerado", description: "Envie para o funcionário. Ele vale por 12 horas." });
+      push({ tone: "success", title: "Link de acesso gerado", description: "Envie para o funcionário. Ele vale por 3 dias." });
     }
   }
 
@@ -73,7 +73,7 @@ export function StaffAccessDialog({ open, onClose, member }: { open: boolean; on
   }
 
   const message = invite
-    ? `Oi ${firstName(member.fullName)}! Seu acesso ao sistema da ${company} está pronto. Crie sua senha por este link (vale por 12 horas): ${invite.setupLink}\n\nDepois é só entrar com o e-mail ${invite.email}.`
+    ? `Oi ${firstName(member.fullName)}! Seu acesso ao sistema da ${company} está pronto. Crie sua senha por este link (vale por 3 dias):\n${invite.setupLink}\n\nDepois é só entrar com o e-mail ${invite.email}.`
     : "";
 
   return (

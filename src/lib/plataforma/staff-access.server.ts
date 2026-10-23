@@ -1,7 +1,7 @@
 import "server-only";
 import { randomBytes } from "crypto";
 import type { NextRequest } from "next/server";
-import { buildBaseUrl, findUserIdByEmail, hashToken } from "@/lib/admin/access-link";
+import { SETUP_LINK_TTL_MS, buildBaseUrl, findUserIdByEmail, hashToken } from "@/lib/admin/access-link";
 import { createSupabaseAdminClient, createSupabaseAuthServerClient } from "@/lib/supabase/server";
 
 // Acesso de funcionários: resolve quem está pedindo, cria o login e gera o
@@ -24,7 +24,7 @@ export type Requester = {
   staffId?: string;
 };
 
-const LINK_TTL_MS = 12 * 60 * 60 * 1000;
+const LINK_TTL_MS = SETUP_LINK_TTL_MS;
 
 // Modo leitura (assinatura em atraso): nada de novos acessos ou alterações.
 export async function assertAccountWritable(accountId: string) {
@@ -170,7 +170,7 @@ export async function inviteStaff(
     .eq("staff_id", staff.id)
     .is("used_at", null);
 
-  const token = randomBytes(32).toString("base64url");
+  const token = randomBytes(24).toString("hex");
   const expiresAt = new Date(now.getTime() + LINK_TTL_MS).toISOString();
   const { error: tokenError } = await admin.from("password_setup_tokens").insert({
     account_id: staff.account_id,

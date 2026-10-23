@@ -26,7 +26,9 @@ export default function LoginPage() {
     });
 
     if (error) {
-      setGlobalError("Email ou senha inválidos.");
+      setGlobalError(
+        "E-mail ou senha incorretos. Se é o seu primeiro acesso, crie a senha pelo link que você recebeu por WhatsApp ou e-mail depois da aprovação.",
+      );
       return;
     }
 

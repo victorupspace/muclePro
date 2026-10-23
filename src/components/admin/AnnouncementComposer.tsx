@@ -1,5 +1,6 @@
 "use client";
 
+import { DateTimeField } from "@/components/plataforma/DateTimeField";
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -239,11 +240,10 @@ export function AnnouncementComposer({ open, mode, initial, onClose, onSubmit }:
                 </Field>
 
                 <Field label="Expira em" hint="Opcional. Após a data, o anúncio some do sino dos estabelecimentos.">
-                  <input
-                    type="datetime-local"
+                  <DateTimeField
                     value={toLocalInputValue(form.expiresAt)}
-                    onChange={(e) => setForm((f) => ({ ...f, expiresAt: fromLocalInputValue(e.target.value) }))}
-                    className="h-10 w-full rounded-btn border border-ink-200 bg-white px-3 text-[13px] text-ink-900 outline-none transition-colors focus:border-ink-400"
+                    onChange={(v) => setForm((f) => ({ ...f, expiresAt: fromLocalInputValue(v) }))}
+                    defaultTime="23:59"
                   />
                 </Field>
               </div>

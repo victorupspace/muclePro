@@ -1,5 +1,6 @@
 "use client";
 
+import { DatePickerField } from "../DatePickerField";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Archive, ArrowDown, ArrowUp, Copy, HeartPulse, Plus, Send, Trash2, X } from "lucide-react";
 import { Field, inputClass, selectClass, textareaClass } from "../FormKit";
@@ -433,7 +434,7 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
             </select>
           </Field>
           <Field label="Início do ciclo">
-            <input type="date" value={startsOn} onChange={(e) => changeStart(e.target.value)} className={inputClass} />
+            <DatePickerField value={startsOn} onChange={changeStart} />
           </Field>
           <Field label="Trocar a rotina a cada">
             <select value={cycleMonths} onChange={(e) => changeCycle(e.target.value)} className={selectClass}>
@@ -446,7 +447,7 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
             </select>
           </Field>
           <Field label="Vencimento do ciclo" hint={reviewOn ? "Lembrete na agenda de quem montou, 7 dias antes." : undefined}>
-            <input type="date" value={reviewOn} onChange={(e) => setReviewOn(e.target.value)} className={inputClass} />
+            <DatePickerField value={reviewOn} onChange={setReviewOn} min={startsOn || undefined} />
           </Field>
           {!editing && isBlank && (
             <Field label="Começar de um modelo">

@@ -1,5 +1,6 @@
 "use client";
 
+import { DateTimeField } from "../DateTimeField";
 import { useEffect, useState } from "react";
 import { Field, ModalFooter, inputClass, selectClass, textareaClass } from "../FormKit";
 import { Modal } from "../Modal";
@@ -144,7 +145,7 @@ export function LeadFormModal({
           </Field>
         )}
         <Field label="Aula experimental" hint={editing ? undefined : "Se marcar, o lead já entra em Aula agendada."}>
-          <input type="datetime-local" value={trialAt} onChange={(e) => setTrialAt(e.target.value)} className={inputClass} />
+          <DateTimeField value={trialAt} onChange={setTrialAt} defaultTime="18:00" />
         </Field>
         {units.length > 1 && !scopeUnitId && (
           <Field label="Unidade">

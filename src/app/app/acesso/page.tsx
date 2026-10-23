@@ -5,6 +5,7 @@ import { Suspense, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowRight, Loader2, ShieldCheck } from "lucide-react";
 import { BrandMark } from "@/components/app/BrandMark";
+import { maskDateBR, parseDateBR } from "@/lib/cadastro/masks";
 import { EASE } from "@/lib/motion";
 import { supabase } from "@/lib/supabase/client";
 
@@ -45,12 +46,18 @@ function Acesso() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!answer) return;
+    // Nascimento digitado como dd/mm/aaaa; o servidor compara aaaa-mm-dd.
+    const value = info?.verify === "nascimento" ? parseDateBR(answer) : answer;
+    if (!value) {
+      setError("Confira a data: use dia/mês/ano, ex.: 25/03/1995.");
+      return;
+    }
     setBusy(true);
     setError(null);
     const res = await fetch("/api/app/acesso", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token, answer }),
+      body: JSON.stringify({ token, answer: value }),
     }).catch(() => null);
     const body = (await res?.json().catch(() => ({}))) as { tokenHash?: string; error?: string } | undefined;
     if (!res || !res.ok || !body?.tokenHash) {
@@ -108,10 +115,12 @@ function Acesso() {
                   </span>
                   {info.verify === "nascimento" ? (
                     <input
-                      type="date"
                       required
+                      inputMode="numeric"
+                      autoComplete="bday"
+                      placeholder="dd/mm/aaaa"
                       value={answer}
-                      onChange={(e) => setAnswer(e.target.value)}
+                      onChange={(e) => setAnswer(maskDateBR(e.target.value))}
                       className="h-14 w-full rounded-card border-0 bg-white px-4 text-[17px] font-semibold text-ink-900 outline-none ring-2 ring-transparent focus:ring-brand-light"
                     />
                   ) : (

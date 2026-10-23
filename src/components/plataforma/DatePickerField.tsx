@@ -14,7 +14,8 @@ const POPOVER_WIDTH = 312;
 const POPOVER_HEIGHT = 400;
 
 type DatePickerFieldProps = {
-  label: string;
+  // Sem rótulo quando o campo já está dentro de um <Field>.
+  label?: string;
   value: string;
   onChange: (value: string) => void;
   required?: boolean;
@@ -30,6 +31,9 @@ type DatePickerFieldProps = {
   // Mensagens próprias para data antes de min / depois de max.
   minMessage?: string;
   maxMessage?: string;
+  disabled?: boolean;
+  // Visual escuro/alto (ex.: área do aluno).
+  className?: string;
 };
 
 // Campo de data: dá para digitar (dd/mm/aaaa) ou escolher no calendário.
@@ -48,6 +52,8 @@ export function DatePickerField({
   hint,
   minMessage,
   maxMessage,
+  disabled,
+  className,
 }: DatePickerFieldProps) {
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const popRef = useRef<HTMLDivElement | null>(null);
@@ -167,16 +173,20 @@ export function DatePickerField({
 
   return (
     <div className="block">
-      <span className="mb-1 block text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500">
-        {label}
-        {required && <span className="ml-1 text-brand">*</span>}
-      </span>
+      {label && (
+        <span className="mb-1 block text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500">
+          {label}
+          {required && <span className="ml-1 text-brand">*</span>}
+        </span>
+      )}
 
       <div
         ref={anchorRef}
         className={cn(
           "flex h-10 w-full items-center rounded-btn border bg-white transition-colors focus-within:border-ink-400",
           shownError ? "border-danger-300" : "border-ink-200 hover:border-ink-300",
+          disabled && "pointer-events-none opacity-60",
+          className,
         )}
       >
         <input
@@ -186,7 +196,8 @@ export function DatePickerField({
           placeholder={placeholder}
           inputMode="numeric"
           autoComplete="off"
-          aria-label={label}
+          aria-label={label ?? "Data"}
+          disabled={disabled}
           aria-invalid={Boolean(shownError)}
           required={required}
           className="h-full min-w-0 flex-1 rounded-btn bg-transparent px-3 text-[13px] font-medium text-ink-900 outline-none placeholder:font-normal placeholder:text-ink-400"
@@ -194,6 +205,7 @@ export function DatePickerField({
         <button
           type="button"
           onClick={() => setOpen((current) => !current)}
+          disabled={disabled}
           aria-label="Abrir calendário"
           aria-expanded={open}
           className="mr-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-btn text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-900"

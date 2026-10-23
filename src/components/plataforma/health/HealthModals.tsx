@@ -1,5 +1,6 @@
 "use client";
 
+import { DatePickerField } from "../DatePickerField";
 import { useEffect, useState } from "react";
 import { Field, ModalFooter, inputClass, textareaClass } from "../FormKit";
 import { Modal } from "../Modal";
@@ -125,7 +126,7 @@ export function AssessmentModal({
     >
       <form id="assessment-form" onSubmit={handleSubmit} className="space-y-4">
         <Field label="Data da avaliação" className="sm:max-w-[220px]">
-          <input type="date" value={measuredOn} onChange={(e) => setMeasuredOn(e.target.value)} className={inputClass} />
+          <DatePickerField value={measuredOn} onChange={setMeasuredOn} max={todayValue()} hideShortcuts />
         </Field>
         <MeasureFields value={measures} onChange={setMeasures} />
         <Field label="Observações">

@@ -47,6 +47,18 @@ export function parseDateBR(value: string) {
   return `${m[3]}-${m[2]}-${m[1]}`;
 }
 
+export function maskTimeBR(value: string) {
+  const d = onlyDigits(value).slice(0, 4);
+  return d.length <= 2 ? d : `${d.slice(0, 2)}:${d.slice(2)}`;
+}
+
+// "HH:mm" em 24 horas; null se a hora não existe.
+export function parseTimeBR(value: string) {
+  const m = /^(\d{2}):(\d{2})$/.exec(value.trim());
+  if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) return null;
+  return `${m[1]}:${m[2]}`;
+}
+
 export function isValidEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim());
 }

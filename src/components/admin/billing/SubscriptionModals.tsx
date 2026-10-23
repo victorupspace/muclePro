@@ -1,5 +1,6 @@
 "use client";
 
+import { DatePickerField } from "@/components/plataforma/DatePickerField";
 import { useEffect, useState } from "react";
 import { AlertTriangle, Ban, CheckCheck, RotateCcw } from "lucide-react";
 import { CurrencyInput, Field, ModalFooter, inputClass, selectClass, textareaClass } from "@/components/plataforma/FormKit";
@@ -151,14 +152,16 @@ export function SubscriptionModal({ open, onClose, account, plans, invoices, onS
           </Field>
           <Field label="Fim do teste grátis">
             <div className="flex gap-1.5">
-              <input type="date" value={trialEnd} onChange={(e) => setTrialEnd(e.target.value)} className={inputClass} />
+              <div className="min-w-0 flex-1">
+                <DatePickerField value={trialEnd} onChange={setTrialEnd} hideShortcuts />
+              </div>
               <button type="button" onClick={() => extendTrial(7)} className="h-10 shrink-0 rounded-btn border border-ink-200 px-2.5 text-[12px] font-semibold text-ink-700 hover:bg-ink-50">
                 +7 dias
               </button>
             </div>
           </Field>
           <Field label="Cobrança a partir de" hint={hasInvoices ? "Já há faturas: o próximo período segue a última." : "Vazio = no fim do teste grátis (ou hoje)."}>
-            <input type="date" value={startOn} onChange={(e) => setStartOn(e.target.value)} disabled={hasInvoices} className={inputClass} />
+            <DatePickerField value={startOn} onChange={setStartOn} disabled={hasInvoices} hideShortcuts />
           </Field>
           <Field label="Carência (dias)" hint="Depois do vencimento, antes do modo leitura.">
             <input type="number" min={0} max={60} value={grace} onChange={(e) => setGrace(e.target.value)} className={inputClass} />
@@ -306,7 +309,7 @@ export function PayInvoiceModal({
         className="grid gap-3 sm:grid-cols-2"
       >
         <Field label="Pago em">
-          <input type="date" value={paidOn} onChange={(e) => setPaidOn(e.target.value)} max={todayBrt()} className={inputClass} />
+          <DatePickerField value={paidOn} onChange={setPaidOn} max={todayBrt()} hideShortcuts />
         </Field>
         <Field label="Valor recebido">
           <CurrencyInput value={amount} onChange={setAmount} required />

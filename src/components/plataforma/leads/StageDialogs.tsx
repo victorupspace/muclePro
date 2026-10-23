@@ -1,5 +1,6 @@
 "use client";
 
+import { DateTimeField } from "../DateTimeField";
 import { useEffect, useState } from "react";
 import { ReasonPicker } from "../ChurnReasonModal";
 import { Field, ModalFooter, inputClass, textareaClass } from "../FormKit";
@@ -50,7 +51,7 @@ export function ScheduleTrialModal({ open, onClose, lead }: { open: boolean; onC
     >
       <form id="trial-form" onSubmit={handleSubmit}>
         <Field label="Dia e horário" required>
-          <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} required className={inputClass} />
+          <DateTimeField value={when} onChange={setWhen} required defaultTime="18:00" />
         </Field>
       </form>
     </Modal>

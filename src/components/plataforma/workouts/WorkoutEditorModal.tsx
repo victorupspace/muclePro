@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Archive, ArrowDown, ArrowUp, Copy, Plus, Send, Trash2, X } from "lucide-react";
+import { Archive, ArrowDown, ArrowUp, Copy, HeartPulse, Plus, Send, Trash2, X } from "lucide-react";
 import { Field, inputClass, selectClass, textareaClass } from "../FormKit";
 import { Modal } from "../Modal";
 import { HealthAlert } from "../health/HealthKit";
@@ -9,8 +9,21 @@ import { useToast } from "../Toast";
 import { cn } from "@/lib/cn";
 import { WEEKDAY_ORDER, WEEKDAY_SHORT, WORKOUT_LEVEL_LABEL, addMonthsToDateValue, firstName, todayValue } from "@/lib/plataforma/format";
 import { usePlataformaStore } from "@/lib/plataforma/store";
-import type { WorkoutDay, WorkoutExercise, WorkoutLevel, WorkoutProgram } from "@/lib/plataforma/types";
-import { ALL_EXERCISES, CYCLE_OPTIONS, DEFAULT_CYCLE_MONTHS, WORKOUT_TEMPLATES, cleanDays, cycleLabel, emptyDay, emptyExercise } from "@/lib/plataforma/workouts";
+import type { CardioIntensity, WorkoutCardio, WorkoutDay, WorkoutExercise, WorkoutLevel, WorkoutProgram, WorkoutTemplate } from "@/lib/plataforma/types";
+import {
+  ALL_EXERCISES,
+  CARDIO_INTENSITY_HINT,
+  CARDIO_INTENSITY_LABEL,
+  CYCLE_OPTIONS,
+  DEFAULT_CARDIO_EQUIPMENT,
+  DEFAULT_CYCLE_MONTHS,
+  WORKOUT_TEMPLATES,
+  cleanDays,
+  cycleLabel,
+  emptyCardio,
+  emptyDay,
+  emptyExercise,
+} from "@/lib/plataforma/workouts";
 
 type Props = {
   open: boolean;
@@ -20,16 +33,28 @@ type Props = {
   workout?: WorkoutProgram;
   // Nova ficha a partir de uma existente.
   copyFrom?: WorkoutProgram;
+  // Treino padrão em edição (sem aluno).
+  template?: WorkoutTemplate;
+  // Ficha personalizada montada a partir de um treino padrão.
+  fromTemplate?: WorkoutTemplate;
 };
+
+type Kind = "personalizado" | "padrao";
+const INTENSITIES = Object.keys(CARDIO_INTENSITY_LABEL) as CardioIntensity[];
 
 const LEVELS = Object.keys(WORKOUT_LEVEL_LABEL) as WorkoutLevel[];
 const cellInput =
   "h-9 w-full rounded-[6px] border border-ink-200 bg-white px-2 text-[12.5px] text-ink-900 placeholder:text-ink-400 transition-colors focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15";
 
-export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom }: Props) {
-  const { students, workouts, addWorkout, updateWorkout } = usePlataformaStore();
+export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom, template, fromTemplate }: Props) {
+  const { students, workouts, addWorkout, updateWorkout, workoutTemplates, addWorkoutTemplate, updateWorkoutTemplate, settings } = usePlataformaStore();
   const { push } = useToast();
-  const editing = Boolean(workout);
+  const editing = Boolean(workout || template);
+  // Só a ficha nova sem aluno definido (página Treinos) oferece as duas opções.
+  const canChooseKind = !studentId && !workout && !copyFrom && !template && !fromTemplate;
+  const [kind, setKind] = useState<Kind>("personalizado");
+  const isTemplate = kind === "padrao";
+  const cardioOptions = settings.cardioEquipment?.length ? settings.cardioEquipment : DEFAULT_CARDIO_EQUIPMENT;
 
   const [student, setStudent] = useState("");
   const [title, setTitle] = useState("");
@@ -46,24 +71,25 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
 
   useEffect(() => {
     if (!open) return;
-    const source = workout ?? copyFrom;
+    const source = workout ?? copyFrom ?? template ?? fromTemplate;
+    setKind(template ? "padrao" : "personalizado");
     setStudent(workout?.studentId ?? studentId ?? copyFrom?.studentId ?? "");
-    setTitle(workout?.title ?? (copyFrom ? `${copyFrom.title} (nova)` : ""));
+    setTitle(workout?.title ?? template?.title ?? fromTemplate?.title ?? (copyFrom ? `${copyFrom.title} (nova)` : ""));
     setGoal(source?.goal ?? "");
     setLevel(source?.level ?? "");
     setStartsOn(workout?.startsOn ?? todayValue());
-    const months = workout ? workout.cycleMonths ?? "" : copyFrom?.cycleMonths ?? DEFAULT_CYCLE_MONTHS;
+    const months = workout ? workout.cycleMonths ?? "" : template ? template.cycleMonths ?? "" : source?.cycleMonths ?? DEFAULT_CYCLE_MONTHS;
     setCycleMonths(months);
     setReviewOn(workout?.reviewOn ?? (workout ? "" : months ? addMonthsToDateValue(todayValue(), months) : ""));
     setNotes(source?.notes ?? "");
     setDays(
       source?.days.length
-        ? source.days.map((d) => ({ ...d, weekdays: [...(d.weekdays ?? [])], exercises: d.exercises.map((e) => ({ ...e })) }))
+        ? source.days.map(cloneDay)
         : [emptyDay(0)],
     );
     setActiveDay(0);
     setError(null);
-  }, [open, workout, copyFrom, studentId]);
+  }, [open, workout, copyFrom, studentId, template, fromTemplate]);
 
   const activeStudents = useMemo(
     () => students.filter((s) => s.status === "ativo").sort((a, b) => a.fullName.localeCompare(b.fullName)),
@@ -123,12 +149,28 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
       prev.map((d, i) => (i === activeDay ? { ...d, exercises: d.exercises.filter((_, j) => j !== ei) } : d)),
     );
   }
+  function patchCardio(ci: number, patch: Partial<WorkoutCardio>) {
+    setDays((prev) =>
+      prev.map((d, i) =>
+        i === activeDay ? { ...d, cardio: (d.cardio ?? []).map((c, j) => (j === ci ? { ...c, ...patch } : c)) } : d,
+      ),
+    );
+  }
+  function addCardio() {
+    patchDay(activeDay, { cardio: [...(day.cardio ?? []), emptyCardio(cardioOptions[0] ?? "")] });
+  }
+  function removeCardio(ci: number) {
+    setDays((prev) => prev.map((d, i) => (i === activeDay ? { ...d, cardio: (d.cardio ?? []).filter((_, j) => j !== ci) } : d)));
+  }
   function addDay() {
     setDays((prev) => [...prev, emptyDay(prev.length)]);
     setActiveDay(days.length);
   }
   function duplicateDay() {
-    setDays((prev) => [...prev, { ...emptyDay(prev.length), focus: day.focus, weekdays: [], exercises: day.exercises.map((e) => ({ ...e })) }]);
+    setDays((prev) => [
+      ...prev,
+      { ...emptyDay(prev.length), focus: day.focus, weekdays: [], exercises: day.exercises.map((e) => ({ ...e })), cardio: (day.cardio ?? []).map((c) => ({ ...c })) },
+    ]);
     setActiveDay(days.length);
   }
   function removeDay(index: number) {
@@ -137,24 +179,49 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
     setActiveDay((a) => Math.max(0, a >= index ? a - 1 : a));
   }
   function applyTemplate(id: string) {
-    const t = WORKOUT_TEMPLATES.find((x) => x.id === id);
+    // Treinos padrão da academia ("academia:<id>") ou modelos prontos do sistema.
+    const own = id.startsWith("academia:") ? workoutTemplates.find((x) => `academia:${x.id}` === id) : undefined;
+    const builtIn = own ? undefined : WORKOUT_TEMPLATES.find((x) => x.id === id);
+    const t = own ?? builtIn;
     if (!t) return;
     setTitle((v) => v || t.title);
-    setGoal((v) => v || t.goal);
-    setDays(t.days.map((d) => ({ ...d, weekdays: [...(d.weekdays ?? [])], exercises: d.exercises.map((e) => ({ ...e })) })));
+    setGoal((v) => v || t.goal || "");
+    if (own) {
+      setLevel((v) => v || own.level || "");
+      setNotes((v) => v || own.notes || "");
+      if (own.cycleMonths) changeCycle(String(own.cycleMonths));
+    }
+    setDays(t.days.map(cloneDay));
     setActiveDay(0);
   }
 
-  const isBlank = days.every((d) => d.exercises.every((e) => !e.name.trim()));
+  const isBlank = days.every((d) => d.exercises.every((e) => !e.name.trim()) && (d.cardio ?? []).length === 0);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const clean = cleanDays(days);
-    if (!student) return setError("Escolha o aluno.");
+    if (!isTemplate && !student) return setError("Escolha o aluno.");
     if (!title.trim()) return setError("Dê um nome para a ficha. Ex.: Hipertrofia ABC.");
-    if (clean.length === 0) return setError("Adicione pelo menos um exercício.");
+    if (clean.length === 0) return setError("Adicione pelo menos um exercício ou um cardio.");
     setError(null);
     setSubmitting(true);
+
+    if (isTemplate) {
+      const payload = { title, goal: goal.trim(), level: level || undefined, cycleMonths: cycleMonths || 0, notes: notes.trim(), days: clean };
+      const saved = template
+        ? await updateWorkoutTemplate(template.id, { ...payload, level: level || ("" as WorkoutLevel) })
+        : await addWorkoutTemplate(payload);
+      setSubmitting(false);
+      if (saved) {
+        push({
+          tone: "success",
+          title: template ? "Treino padrão atualizado" : "Treino padrão salvo",
+          description: template ? undefined : "Ele aparece em Treinos padrão e pode ser aplicado a qualquer aluno.",
+        });
+        onClose();
+      }
+      return;
+    }
     const payload = {
       title,
       goal: goal.trim(),
@@ -200,8 +267,14 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
       open={open}
       onClose={onClose}
       size="xl"
-      title={editing ? "Editar ficha de treino" : "Nova ficha de treino"}
-      description={studentName && (studentId || editing) ? studentName : "Monte os treinos do aluno. Linhas sem exercício são ignoradas."}
+      title={template ? "Editar treino padrão" : editing ? "Editar ficha de treino" : "Nova ficha de treino"}
+      description={
+        isTemplate
+          ? "Modelo da academia, sem aluno. Depois é só aplicar a qualquer aluno."
+          : studentName && (studentId || editing)
+            ? studentName
+            : "Monte os treinos do aluno. Linhas sem exercício são ignoradas."
+      }
       footer={
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
           {error && (
@@ -217,7 +290,16 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
           >
             Cancelar
           </button>
-          {isDraftFlow ? (
+          {isTemplate ? (
+            <button
+              type="submit"
+              form="workout-form"
+              disabled={submitting}
+              className="inline-flex h-11 w-full items-center justify-center rounded-btn bg-brand px-4 text-[13px] font-semibold text-white transition-colors hover:bg-brand-hover disabled:opacity-60 sm:h-10 sm:w-auto"
+            >
+              {submitting ? "Salvando..." : template ? "Salvar treino padrão" : "Criar treino padrão"}
+            </button>
+          ) : isDraftFlow ? (
             <>
               <button
                 type="submit"
@@ -253,7 +335,74 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
       }
     >
       <form id="workout-form" onSubmit={handleSubmit} className="space-y-4">
-        {studentObj && <HealthAlert student={studentObj} />}
+        {canChooseKind && (
+          <fieldset>
+            <legend className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500">Tipo de treino</legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {(
+                [
+                  ["padrao", "Treino Padrão", "Modelo da academia, sem aluno. Aplica a quem quiser depois."],
+                  ["personalizado", "Treino Personalizado", "Ficha de um aluno, com ciclo e liberação no app."],
+                ] as const
+              ).map(([value, label, hint]) => (
+                <label
+                  key={value}
+                  className={cn(
+                    "flex cursor-pointer items-start gap-2.5 rounded-btn border p-3 transition-colors",
+                    kind === value ? "border-brand bg-brand/[0.04]" : "border-ink-200 hover:border-ink-400",
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="workout-kind"
+                    value={value}
+                    checked={kind === value}
+                    onChange={() => {
+                      setKind(value);
+                      setError(null);
+                    }}
+                    className="mt-0.5 h-4 w-4 accent-[rgb(var(--color-brand))]"
+                  />
+                  <span>
+                    <span className="block text-[13px] font-bold text-ink-900">{label}</span>
+                    <span className="block text-[11.5px] leading-[1.45] text-ink-500">{hint}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
+        {!isTemplate && studentObj && <HealthAlert student={studentObj} />}
+        {isTemplate ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Field label="Nome da ficha" required className="sm:col-span-2">
+              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex.: Hipertrofia ABC" className={inputClass} />
+            </Field>
+            <Field label="Objetivo" className="sm:col-span-2">
+              <input value={goal} onChange={(e) => setGoal(e.target.value)} placeholder="Ex.: ganho de massa, emagrecimento" className={inputClass} />
+            </Field>
+            <Field label="Nível" className="lg:col-span-2">
+              <select value={level} onChange={(e) => setLevel(e.target.value as WorkoutLevel | "")} className={selectClass}>
+                <option value="">Não informar</option>
+                {LEVELS.map((l) => (
+                  <option key={l} value={l}>
+                    {WORKOUT_LEVEL_LABEL[l]}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Duração da rotina" className="lg:col-span-2">
+              <select value={cycleMonths} onChange={(e) => setCycleMonths(e.target.value ? Number(e.target.value) : "")} className={selectClass}>
+                <option value="">Sem prazo definido</option>
+                {CYCLE_OPTIONS.map((m) => (
+                  <option key={m} value={m}>
+                    {cycleLabel(m)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {!studentId && !editing && (
             <Field label="Aluno" required className="sm:col-span-2 lg:col-span-4">
@@ -303,15 +452,27 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
             <Field label="Começar de um modelo">
               <select value="" onChange={(e) => applyTemplate(e.target.value)} className={selectClass}>
                 <option value="">Ficha em branco</option>
-                {WORKOUT_TEMPLATES.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.label}
-                  </option>
-                ))}
+                {workoutTemplates.length > 0 && (
+                  <optgroup label="Treinos padrão da academia">
+                    {workoutTemplates.map((t) => (
+                      <option key={t.id} value={`academia:${t.id}`}>
+                        {t.title}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                <optgroup label="Modelos prontos">
+                  {WORKOUT_TEMPLATES.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.label}
+                    </option>
+                  ))}
+                </optgroup>
               </select>
             </Field>
           )}
         </div>
+        )}
 
         {/* Treinos A, B, C… */}
         <div className="rounded-card border border-ink-200">
@@ -328,7 +489,7 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
                 >
                   Treino {d.name || i + 1}
                   <span className={cn("ml-1.5 text-[10.5px]", i === activeDay ? "text-white/60" : "text-ink-400")}>
-                    {d.exercises.filter((e) => e.name.trim()).length}
+                    {d.exercises.filter((e) => e.name.trim()).length + (d.cardio ?? []).length}
                   </span>
                 </button>
               </div>
@@ -465,6 +626,98 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
               <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
               Adicionar exercício
             </button>
+
+            <div className="rounded-btn border border-ink-200 bg-ink-50/50 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-600">
+                  <HeartPulse className="h-3.5 w-3.5 text-brand" strokeWidth={2.4} />
+                  Cardio
+                  {(day.cardio ?? []).length > 0 && (
+                    <span className="rounded-full bg-white px-1.5 text-[10px] text-ink-500 ring-1 ring-inset ring-ink-200">{(day.cardio ?? []).length}</span>
+                  )}
+                </p>
+                <button
+                  type="button"
+                  onClick={addCardio}
+                  className="inline-flex h-8 items-center gap-1 rounded-btn bg-white px-2.5 text-[12px] font-semibold text-brand ring-1 ring-inset ring-brand/25 hover:bg-brand/[0.06]"
+                >
+                  <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
+                  Adicionar cardio
+                </button>
+              </div>
+              {(day.cardio ?? []).length === 0 ? (
+                <p className="mt-1.5 text-[12px] text-ink-500">Sem cardio neste treino. Adicione esteira, bike, elíptico…</p>
+              ) : (
+                <ul className="mt-2.5 space-y-2">
+                  {(day.cardio ?? []).map((c, ci) => (
+                    <li key={ci} className="rounded-btn border border-ink-200 bg-white p-2">
+                      <div className="grid grid-cols-2 gap-1.5 md:grid-cols-[minmax(0,1fr)_110px_170px_36px] md:items-center">
+                        <select
+                          value={cardioOptions.includes(c.equipment) ? c.equipment : "__outro"}
+                          onChange={(e) => patchCardio(ci, { equipment: e.target.value === "__outro" ? "" : e.target.value })}
+                          aria-label="Aparelho"
+                          className={cn(cellInput, "col-span-2 font-semibold md:col-span-1")}
+                        >
+                          {cardioOptions.map((o) => (
+                            <option key={o} value={o}>
+                              {o}
+                            </option>
+                          ))}
+                          <option value="__outro">Outro aparelho…</option>
+                        </select>
+                        <label className="relative">
+                          <input
+                            value={c.minutes ?? ""}
+                            onChange={(e) => patchCardio(ci, { minutes: e.target.value.replace(/[^\d]/g, "").slice(0, 3) })}
+                            inputMode="numeric"
+                            placeholder="20"
+                            aria-label="Duração em minutos"
+                            className={cn(cellInput, "pr-9")}
+                          />
+                          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-ink-500">min</span>
+                        </label>
+                        <select
+                          value={c.intensity ?? ""}
+                          onChange={(e) => patchCardio(ci, { intensity: (e.target.value || undefined) as CardioIntensity | undefined })}
+                          aria-label="Intensidade"
+                          title={c.intensity ? CARDIO_INTENSITY_HINT[c.intensity] : undefined}
+                          className={cellInput}
+                        >
+                          <option value="">Intensidade</option>
+                          {INTENSITIES.map((i) => (
+                            <option key={i} value={i}>
+                              {CARDIO_INTENSITY_LABEL[i]}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="col-span-2 flex justify-end md:col-span-1">
+                          <IconBtn label="Remover cardio" danger onClick={() => removeCardio(ci)}>
+                            <X className="h-3.5 w-3.5" strokeWidth={2.4} />
+                          </IconBtn>
+                        </div>
+                      </div>
+                      {!cardioOptions.includes(c.equipment) && (
+                        <input
+                          value={c.equipment}
+                          onChange={(e) => patchCardio(ci, { equipment: e.target.value })}
+                          placeholder="Nome do aparelho"
+                          aria-label="Nome do aparelho"
+                          className={cn(cellInput, "mt-1.5")}
+                        />
+                      )}
+                      <input
+                        value={c.notes ?? ""}
+                        onChange={(e) => patchCardio(ci, { notes: e.target.value })}
+                        placeholder="Observação (opcional): inclinação, velocidade, zona de frequência…"
+                        aria-label="Observação do cardio"
+                        className={cn(cellInput, "mt-1.5 h-8 border-dashed text-[11.5px]")}
+                      />
+                      {c.intensity && <p className="mt-1 text-[11px] text-ink-500">{CARDIO_INTENSITY_HINT[c.intensity]}</p>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         </div>
 
@@ -472,7 +725,7 @@ export function WorkoutEditorModal({ open, onClose, studentId, workout, copyFrom
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className={textareaClass} placeholder="Aquecimento, frequência semanal, cuidados com lesões…" />
         </Field>
 
-        {isDraftFlow && (
+        {!isTemplate && isDraftFlow && (
           <p className="flex items-start gap-2 rounded-btn border border-ink-200 bg-ink-50/60 px-3 py-2.5 text-[12.5px] leading-[1.5] text-ink-700">
             <Archive className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-500" strokeWidth={2.2} />
             <span>
@@ -522,4 +775,13 @@ function IconBtn({
       {children}
     </button>
   );
+}
+
+function cloneDay(d: WorkoutDay): WorkoutDay {
+  return {
+    ...d,
+    weekdays: [...(d.weekdays ?? [])],
+    exercises: d.exercises.map((e) => ({ ...e })),
+    cardio: (d.cardio ?? []).map((c) => ({ ...c })),
+  };
 }

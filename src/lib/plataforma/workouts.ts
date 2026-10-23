@@ -1,6 +1,6 @@
 import { MARK_STROKES, MARK_VIEWBOX, markPathToPdfOps } from "@/lib/brand/mark";
 import { WORKOUT_LEVEL_LABEL, daysFromToday, firstName, formatDateValue, parseDateValue, weekdaysLabel } from "./format";
-import type { Student, WorkoutDay, WorkoutExercise, WorkoutProgram } from "./types";
+import type { CardioIntensity, Student, WorkoutCardio, WorkoutDay, WorkoutExercise, WorkoutProgram } from "./types";
 
 // Fichas de treino: biblioteca para autocompletar, situação da ficha e as
 // saídas para o aluno (texto de WhatsApp e PDF).
@@ -15,8 +15,46 @@ export const EXERCISE_LIBRARY: Record<string, string[]> = {
   Glúteos: ["Elevação pélvica", "Glúteo na polia", "Coice no cabo", "Abdução de quadril"],
   Panturrilha: ["Panturrilha em pé", "Panturrilha sentado", "Panturrilha no leg press"],
   Core: ["Prancha", "Abdominal supra", "Abdominal infra", "Abdominal oblíquo", "Abdominal na polia", "Elevação de pernas"],
-  Cardio: ["Esteira", "Bicicleta ergométrica", "Elíptico", "Escada", "Remo ergômetro", "Pular corda"],
 };
+
+// Cardio: aparelhos mais comuns. A academia escolhe os que tem em Configurações.
+export const DEFAULT_CARDIO_EQUIPMENT = [
+  "Esteira",
+  "Bicicleta ergométrica",
+  "Bike de spinning",
+  "Elíptico",
+  "Escada",
+  "Remo ergômetro",
+  "Transport",
+  "Air bike",
+  "Pular corda",
+];
+
+export const CARDIO_INTENSITY_LABEL: Record<CardioIntensity, string> = {
+  leve: "Leve",
+  moderada: "Moderada",
+  alta: "Alta",
+  intervalada: "Intervalada (HIIT)",
+};
+
+export const CARDIO_INTENSITY_HINT: Record<CardioIntensity, string> = {
+  leve: "Dá para conversar normalmente",
+  moderada: "Fala em frases curtas",
+  alta: "Quase sem conseguir falar",
+  intervalada: "Alterna tiros fortes e recuperação",
+};
+
+export function emptyCardio(equipment = ""): WorkoutCardio {
+  return { equipment, minutes: "20", intensity: "moderada", notes: "" };
+}
+
+// "Esteira · 20 min · Moderada"
+export function cardioLine(c: WorkoutCardio) {
+  const minutes = c.minutes?.trim();
+  return [c.equipment, minutes ? `${minutes}${/^\d+$/.test(minutes) ? " min" : ""}` : null, c.intensity ? CARDIO_INTENSITY_LABEL[c.intensity] : null]
+    .filter(Boolean)
+    .join(" · ");
+}
 
 export const ALL_EXERCISES = Array.from(new Set(Object.values(EXERCISE_LIBRARY).flat())).sort((a, b) => a.localeCompare(b, "pt-BR"));
 
@@ -52,8 +90,17 @@ export function cleanDays(days: WorkoutDay[]): WorkoutDay[] {
           rest: e.rest?.trim() || undefined,
           notes: e.notes?.trim() || undefined,
         })),
+      cardio: (d.cardio ?? [])
+        .filter((c) => c.equipment.trim())
+        .map((c) => ({
+          equipment: c.equipment.trim(),
+          minutes: c.minutes?.trim() || undefined,
+          intensity: c.intensity || undefined,
+          notes: c.notes?.trim() || undefined,
+        })),
     }))
-    .filter((d) => d.exercises.length > 0);
+    .map((d) => (d.cardio.length ? d : { ...d, cardio: undefined }))
+    .filter((d) => d.exercises.length > 0 || (d.cardio?.length ?? 0) > 0);
 }
 
 export type WorkoutStatus = "rascunho" | "ativa" | "vencendo" | "reavaliar" | "arquivada";
@@ -115,6 +162,7 @@ export function workoutWhatsappText(w: WorkoutProgram, student: Student, company
       const p = prescription(e);
       lines.push(`${i + 1}. ${e.name}${p ? ` · ${p}` : ""}${e.notes ? ` (${e.notes})` : ""}`);
     });
+    for (const c of day.cardio ?? []) lines.push(`Cardio: ${cardioLine(c)}${c.notes ? ` (${c.notes})` : ""}`);
   }
   if (w.notes) lines.push("", `Obs.: ${w.notes}`);
   if (w.reviewOn) lines.push("", `Esta ficha vale até ${formatDateValue(w.reviewOn)}. Depois a gente reavalia e troca os treinos.`);
@@ -263,6 +311,35 @@ export async function downloadWorkoutPdf(w: WorkoutProgram, student: Student, co
       doc.line(margin, y - 2.2, margin + tableW, y - 2.2);
       y += 1.5;
     });
+
+    const cardio = day.cardio ?? [];
+    if (cardio.length) {
+      ensure(10);
+      y += 1;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor(...MUTED);
+      doc.text("CARDIO", margin + 1, y);
+      y += 4.5;
+      for (const c of cardio) {
+        const noteLines = c.notes ? (doc.splitTextToSize(c.notes, tableW - cols[0].w - 2) as string[]) : [];
+        ensure(6 + noteLines.length * 3.6);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9.5);
+        doc.setTextColor(...INK);
+        doc.text(cardioLine(c), margin + cols[0].w + 1, y);
+        if (noteLines.length) {
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(8);
+          doc.setTextColor(...MUTED);
+          doc.text(noteLines, margin + cols[0].w + 1, y + 4.2);
+        }
+        y += 4.2 + noteLines.length * 3.6 + 2;
+        doc.setDrawColor(...LINE);
+        doc.line(margin, y - 2.2, margin + tableW, y - 2.2);
+        y += 1.5;
+      }
+    }
     y += 4;
   }
 

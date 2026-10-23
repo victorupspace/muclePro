@@ -316,6 +316,8 @@ export type AccountSettings = {
   digestEnabled: boolean;
   digestEmail?: string;
   digestLastSentOn?: string;
+  // Aparelhos de cardio da academia (sem valor = lista padrão).
+  cardioEquipment?: string[];
 };
 
 // ───────────────────────────── registro da equipe ──────────────────────────
@@ -396,12 +398,38 @@ export type WorkoutExercise = {
   notes?: string;
 };
 
+export type CardioIntensity = "leve" | "moderada" | "alta" | "intervalada";
+
+// Bloco de cardio de um treino: aparelho, duração, intensidade e observação.
+export type WorkoutCardio = {
+  equipment: string;
+  minutes?: string;
+  intensity?: CardioIntensity;
+  notes?: string;
+};
+
 export type WorkoutDay = {
   name: string;
   focus?: string;
   // Dias da semana (0 = domingo … 6 = sábado).
   weekdays?: number[];
   exercises: WorkoutExercise[];
+  cardio?: WorkoutCardio[];
+};
+
+// Treino padrão da academia: sem aluno, aplicado a qualquer aluno.
+export type WorkoutTemplate = {
+  id: string;
+  authorStaffId?: string;
+  authorName?: string;
+  title: string;
+  goal?: string;
+  level?: WorkoutLevel;
+  cycleMonths?: number;
+  notes?: string;
+  days: WorkoutDay[];
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type WorkoutProgram = {

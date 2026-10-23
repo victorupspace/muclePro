@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { CalendarClock, ClipboardList, Download, Dumbbell, Eye, Plus, UserRoundX } from "lucide-react";
+import { CalendarClock, ClipboardList, Download, Dumbbell, Eye, HeartPulse, LayoutTemplate, Pencil, Plus, Trash2, UserPlus, UserRoundX } from "lucide-react";
+import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { DataTable, TableButton, type Column } from "@/components/admin/DataTable";
 import { EmptyState } from "@/components/admin/EmptyState";
 import { SearchInput, SelectFilter } from "@/components/admin/Filters";
@@ -11,13 +12,13 @@ import { AnimatedNumber, PageIntro, useRevealRows } from "@/components/plataform
 import { WorkoutEditorModal } from "@/components/plataforma/workouts/WorkoutEditorModal";
 import { WorkoutStatusBadge } from "@/components/plataforma/workouts/WorkoutView";
 import { cn } from "@/lib/cn";
-import { formatDateValue, formatRelative, initials, toDateValue } from "@/lib/plataforma/format";
+import { WORKOUT_LEVEL_LABEL, formatDateValue, formatRelative, initials, toDateValue } from "@/lib/plataforma/format";
 import { useAccountSession } from "@/lib/plataforma/session";
 import { usePlataformaStore } from "@/lib/plataforma/store";
-import type { Student, WorkoutProgram } from "@/lib/plataforma/types";
+import type { Student, WorkoutProgram, WorkoutTemplate } from "@/lib/plataforma/types";
 import { cycleLabel, downloadWorkoutPdf, exerciseCount, workoutStatus } from "@/lib/plataforma/workouts";
 
-type View = "fichas" | "sem_ficha";
+type View = "fichas" | "padrao" | "sem_ficha";
 
 const STATUS_OPTIONS = [
   { value: "uso", label: "Em uso e rascunhos" },
@@ -29,7 +30,7 @@ const STATUS_OPTIONS = [
 ];
 
 export default function TreinosPage() {
-  const { workouts, students, staff, loading, studentById, planById, unitById } = usePlataformaStore();
+  const { workouts, students, staff, loading, studentById, planById, unitById, workoutTemplates, removeWorkoutTemplate } = usePlataformaStore();
   const { profile } = useAccountSession();
   const canEdit = Boolean(profile?.permissions.canCreateWorkouts);
   const companyName = profile?.companyName ?? "academia";
@@ -40,6 +41,9 @@ export default function TreinosPage() {
   const [author, setAuthor] = useState(profile?.staffRole === "personal" && profile.staffId ? profile.staffId : "all");
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorStudent, setEditorStudent] = useState<string | undefined>();
+  const [editorTemplate, setEditorTemplate] = useState<WorkoutTemplate | undefined>();
+  const [applyTemplate, setApplyTemplate] = useState<WorkoutTemplate | undefined>();
+  const [deleting, setDeleting] = useState<WorkoutTemplate | null>(null);
 
   const activeStudents = useMemo(() => students.filter((s) => s.status === "ativo"), [students]);
   const withActiveWorkout = useMemo(() => new Set(workouts.filter((w) => w.active).map((w) => w.studentId)), [workouts]);
@@ -99,8 +103,83 @@ export default function TreinosPage() {
 
   function newWorkout(studentId?: string) {
     setEditorStudent(studentId);
+    setEditorTemplate(undefined);
+    setApplyTemplate(undefined);
     setEditorOpen(true);
   }
+  function editTemplate(t: WorkoutTemplate) {
+    setEditorStudent(undefined);
+    setApplyTemplate(undefined);
+    setEditorTemplate(t);
+    setEditorOpen(true);
+  }
+  function startFromTemplate(t: WorkoutTemplate) {
+    setEditorStudent(undefined);
+    setEditorTemplate(undefined);
+    setApplyTemplate(t);
+    setEditorOpen(true);
+  }
+
+  const templateRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return workoutTemplates.filter((t) => !q || t.title.toLowerCase().includes(q) || (t.goal ?? "").toLowerCase().includes(q));
+  }, [workoutTemplates, search]);
+
+  const templateColumns: Column<WorkoutTemplate>[] = [
+    {
+      key: "title",
+      header: "Treino padrão",
+      render: (t) => (
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand/10 text-brand">
+            <LayoutTemplate className="h-3.5 w-3.5" strokeWidth={2.4} />
+          </span>
+          <div className="min-w-0">
+            <p className="truncate font-semibold text-ink-900">{t.title}</p>
+            <p className="truncate text-[11px] text-ink-500">
+              {[t.goal, t.level ? WORKOUT_LEVEL_LABEL[t.level] : null].filter(Boolean).join(" · ") || "Sem objetivo definido"}
+            </p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "content",
+      header: "Conteúdo",
+      mobileLabel: "Conteúdo",
+      render: (t) => {
+        const exercises = t.days.reduce((n, d) => n + d.exercises.length, 0);
+        const cardio = t.days.reduce((n, d) => n + (d.cardio?.length ?? 0), 0);
+        return (
+          <div className="text-[12px] text-ink-700">
+            <p className="font-semibold">{t.days.map((d) => d.name).join(" · ")}</p>
+            <p className="inline-flex items-center gap-1 text-[11px] text-ink-500">
+              {exercises} exercício{exercises === 1 ? "" : "s"}
+              {cardio > 0 && (
+                <>
+                  {" · "}
+                  <HeartPulse className="h-3 w-3 text-brand" strokeWidth={2.4} />
+                  {cardio} cardio
+                </>
+              )}
+            </p>
+          </div>
+        );
+      },
+    },
+    {
+      key: "cycle",
+      header: "Duração",
+      mobileLabel: "Duração",
+      render: (t) => <span className="text-[12.5px] text-ink-700">{t.cycleMonths ? cycleLabel(t.cycleMonths) : "Sem prazo"}</span>,
+    },
+    {
+      key: "author",
+      header: "Criado por",
+      hideOnMobile: true,
+      render: (t) => <span className="text-[12.5px] text-ink-700">{t.authorName ?? "—"}</span>,
+    },
+  ];
 
   const columns: Column<{ workout: WorkoutProgram; student: Student }>[] = [
     {
@@ -126,7 +205,9 @@ export default function TreinosPage() {
         <div className="min-w-0">
           <p className="truncate font-semibold text-ink-900">{workout.title}</p>
           <p className="truncate text-[11px] text-ink-500">
-            {workout.days.map((d) => d.name).join(" · ")} · {exerciseCount(workout)} exercícios{workout.goal ? ` · ${workout.goal}` : ""}
+            {workout.days.map((d) => d.name).join(" · ")} · {exerciseCount(workout)} exercícios
+            {workout.days.some((d) => d.cardio?.length) ? " · com cardio" : ""}
+            {workout.goal ? ` · ${workout.goal}` : ""}
           </p>
         </div>
       ),
@@ -255,6 +336,7 @@ export default function TreinosPage() {
           {(
             [
               ["fichas", "Fichas"],
+              ["padrao", `Treinos padrão (${workoutTemplates.length})`],
               ["sem_ficha", `Sem ficha (${withoutWorkout.length})`],
             ] as const
           ).map(([value, label]) => (
@@ -271,7 +353,7 @@ export default function TreinosPage() {
             </button>
           ))}
         </div>
-        <SearchInput value={search} onChange={setSearch} className="w-full lg:max-w-[340px]" placeholder={view === "fichas" ? "Buscar por aluno ou ficha" : "Buscar aluno"} />
+        <SearchInput value={search} onChange={setSearch} className="w-full lg:max-w-[340px]" placeholder={view === "fichas" ? "Buscar por aluno ou ficha" : view === "padrao" ? "Buscar treino padrão" : "Buscar aluno"} />
         {view === "fichas" && (
           <div className="flex flex-wrap items-center gap-2">
             <SelectFilter label="Situação" value={status} onChange={setStatus} options={STATUS_OPTIONS} />
@@ -309,6 +391,43 @@ export default function TreinosPage() {
               />
             }
           />
+        ) : view === "padrao" ? (
+          <DataTable
+            rows={templateRows}
+            columns={templateColumns}
+            rowKey={(t) => t.id}
+            actions={
+              canEdit
+                ? (t) => (
+                    <>
+                      <TableButton tone="primary" onClick={() => startFromTemplate(t)}>
+                        <UserPlus className="h-3.5 w-3.5" strokeWidth={2.4} />
+                        Aplicar a aluno
+                      </TableButton>
+                      <TableButton onClick={() => editTemplate(t)} aria-label={`Editar ${t.title}`}>
+                        <Pencil className="h-3.5 w-3.5" strokeWidth={2.2} />
+                        Editar
+                      </TableButton>
+                      {(profile?.permissions.isManager || t.authorStaffId === profile?.staffId) && (
+                        <TableButton tone="danger" onClick={() => setDeleting(t)} aria-label={`Excluir ${t.title}`}>
+                          <Trash2 className="h-3.5 w-3.5" strokeWidth={2.2} />
+                        </TableButton>
+                      )}
+                    </>
+                  )
+                : undefined
+            }
+            emptyState={
+              <EmptyState
+                title={workoutTemplates.length === 0 ? "Nenhum treino padrão ainda" : "Nenhum treino padrão com essa busca"}
+                description={
+                  workoutTemplates.length === 0
+                    ? "Crie em Nova ficha → Treino Padrão. Depois é só aplicar a qualquer aluno, sem montar de novo."
+                    : "Tente outro nome."
+                }
+              />
+            }
+          />
         ) : (
           <DataTable
             rows={missingRows}
@@ -329,7 +448,27 @@ export default function TreinosPage() {
         )}
       </div>
 
-      <WorkoutEditorModal open={editorOpen} onClose={() => setEditorOpen(false)} studentId={editorStudent} />
+      <WorkoutEditorModal
+        open={editorOpen}
+        onClose={() => setEditorOpen(false)}
+        studentId={editorStudent}
+        template={editorTemplate}
+        fromTemplate={applyTemplate}
+      />
+      <ConfirmDialog
+        open={Boolean(deleting)}
+        title="Excluir treino padrão?"
+        description={`"${deleting?.title ?? ""}" sai da lista de treinos padrão. As fichas de alunos montadas a partir dele continuam como estão.`}
+        confirmLabel="Excluir treino padrão"
+        cancelLabel="Manter"
+        tone="danger"
+        onCancel={() => setDeleting(null)}
+        onConfirm={() => {
+          const t = deleting;
+          setDeleting(null);
+          if (t) void removeWorkoutTemplate(t.id);
+        }}
+      />
     </div>
   );
 }

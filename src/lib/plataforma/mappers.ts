@@ -30,6 +30,7 @@ import type {
   WorkoutDay,
   WorkoutLevel,
   WorkoutProgram,
+  WorkoutTemplate,
 } from "./types";
 
 // ───────────────────────────── linhas do banco ─────────────────────────────
@@ -413,6 +414,35 @@ export const mapWorkout = (r: WorkoutRow): WorkoutProgram => ({
   publishedAt: r.published_at ?? undefined,
   studentSeenAt: r.student_seen_at ?? undefined,
   active: r.active,
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+});
+
+export type WorkoutTemplateRow = {
+  id: string;
+  account_id: string;
+  author_staff_id: string | null;
+  author_name: string | null;
+  title: string;
+  goal: string | null;
+  level: WorkoutLevel | null;
+  cycle_months: number | null;
+  notes: string | null;
+  days: WorkoutDay[] | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export const mapWorkoutTemplate = (r: WorkoutTemplateRow): WorkoutTemplate => ({
+  id: r.id,
+  authorStaffId: r.author_staff_id ?? undefined,
+  authorName: r.author_name ?? undefined,
+  title: r.title,
+  goal: r.goal ?? undefined,
+  level: r.level ?? undefined,
+  cycleMonths: r.cycle_months ?? undefined,
+  notes: r.notes ?? undefined,
+  days: Array.isArray(r.days) ? r.days : [],
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 });

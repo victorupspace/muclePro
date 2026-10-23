@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Building2, MapPin, Pencil, Plus, Star, Trash2, UserRound } from "lucide-react";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { ActiveBadge } from "@/components/plataforma/Badges";
+import { CardioEquipmentSettings } from "@/components/plataforma/CardioEquipmentSettings";
 import { DigestSettings } from "@/components/plataforma/DigestSettings";
 import { Field, inputClass, selectClass } from "@/components/plataforma/FormKit";
 import { SubscriptionBadge } from "@/components/plataforma/SubscriptionBadge";
@@ -209,6 +210,7 @@ export default function ConfiguracoesPage() {
 
         <div className="space-y-4">
           {profile?.permissions.isManager && <DigestSettings />}
+          {profile?.permissions.isManager && <CardioEquipmentSettings />}
 
           <section className="rounded-card border border-ink-200 bg-white p-5 md:p-6">
             <header className="mb-4 flex items-start justify-between gap-3">

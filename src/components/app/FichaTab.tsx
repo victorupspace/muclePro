@@ -5,6 +5,7 @@ import { Card } from "./TodayTab";
 import { formatDateValue, weekdaysLabel } from "@/lib/plataforma/format";
 import { cycleLabel } from "@/lib/plataforma/workouts";
 import type { AppHome } from "@/lib/app/student-app";
+import { CardioList } from "@/components/plataforma/workouts/CardioList";
 
 export function FichaTab({ home }: { home: AppHome }) {
   const w = home.workout;
@@ -61,6 +62,7 @@ export function FichaTab({ home }: { home: AppHome }) {
               </li>
             ))}
           </ol>
+          <CardioList items={d.cardio} size="lg" />
         </Card>
       ))}
     </div>

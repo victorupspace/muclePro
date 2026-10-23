@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Archive, ArchiveRestore, Copy, Download, Dumbbell, MessageCircle, Pencil, Send, Trash2 } from "lucide-react";
+import { CardioList } from "./CardioList";
 import { cn } from "@/lib/cn";
 import { WORKOUT_LEVEL_LABEL, daysFromToday, firstName, formatDateTime, formatDateValue, formatRelative, weekdaysLabel, whatsappLink } from "@/lib/plataforma/format";
 import type { Student, WorkoutLog, WorkoutProgram } from "@/lib/plataforma/types";
@@ -79,6 +80,7 @@ export function WorkoutView({
   const [open, setOpen] = useState(defaultOpen);
   const [pdfBusy, setPdfBusy] = useState(false);
   const total = exerciseCount(workout);
+  const cardioTotal = workout.days.reduce((n, d) => n + (d.cardio?.length ?? 0), 0);
   const isDraft = !workout.active && !workout.publishedAt;
   // Última carga anotada pelo aluno em cada exercício desta ficha.
   const lastLoads = useMemo(() => {
@@ -119,7 +121,7 @@ export function WorkoutView({
               {[
                 workout.goal,
                 workout.level ? WORKOUT_LEVEL_LABEL[workout.level] : null,
-                `${workout.days.length} treino${workout.days.length === 1 ? "" : "s"} · ${total} exercício${total === 1 ? "" : "s"}`,
+                `${workout.days.length} treino${workout.days.length === 1 ? "" : "s"} · ${total} exercício${total === 1 ? "" : "s"}${cardioTotal ? ` · ${cardioTotal} cardio` : ""}`,
               ]
                 .filter(Boolean)
                 .join(" · ")}
@@ -257,6 +259,7 @@ export function WorkoutView({
                   </li>
                 ))}
               </ol>
+              <CardioList items={day.cardio} />
             </section>
           ))}
           {workout.notes && (

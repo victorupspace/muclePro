@@ -11,6 +11,7 @@ import { EASE } from "@/lib/motion";
 import { lastLoads, pickTodayDay, restSeconds, saveLog, todayKey, type AppHome, type AppLog } from "@/lib/app/student-app";
 import { WEEKDAY_ORDER, WEEKDAY_SHORT, toDateValue, weekdaysLabel } from "@/lib/plataforma/format";
 import type { WorkoutDay, WorkoutLogExercise } from "@/lib/plataforma/types";
+import { CardioList } from "@/components/plataforma/workouts/CardioList";
 
 type Props = { home: AppHome; onSaved: (log: AppLog) => void; onOpenFicha: () => void };
 type SaveState = "idle" | "saving" | "saved" | "error";
@@ -222,6 +223,12 @@ function DayWorkout({ home, day, onSaved, onOpenFicha }: { home: AppHome; day: W
           );
         })}
       </ol>
+
+      {(day.cardio?.length ?? 0) > 0 && (
+        <div className="rounded-card border border-ink-200 bg-white">
+          <CardioList items={day.cardio} size="lg" bare />
+        </div>
+      )}
 
       <button
         type="button"

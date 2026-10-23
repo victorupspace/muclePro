@@ -54,6 +54,7 @@ import type {
   WorkoutDay,
   WorkoutLevel,
   WorkoutProgram,
+  WorkoutTemplate,
   WorkoutLog,
 } from "./types";
 
@@ -65,6 +66,7 @@ import {
   mapNotification,
   mapWorkout,
   mapWorkoutLog,
+  mapWorkoutTemplate,
   mapPayment,
   mapPlan,
   mapStaff,
@@ -78,6 +80,7 @@ import {
   type LeadEventRow,
   type LeadRow,
   type WorkoutRow,
+  type WorkoutTemplateRow,
   type WorkoutLogRow,
   type PaymentRow,
   type PlanRow,
@@ -232,6 +235,15 @@ export type NewWorkout = {
 };
 export type WorkoutPatch = Partial<Omit<NewWorkout, "studentId">>;
 
+export type NewWorkoutTemplate = {
+  title: string;
+  goal?: string;
+  level?: WorkoutLevel;
+  cycleMonths?: number;
+  notes?: string;
+  days: WorkoutDay[];
+};
+
 export type SettingsPatch = Partial<Omit<AccountSettings, "digestLastSentOn">>;
 
 type SettingsRow = {
@@ -240,6 +252,7 @@ type SettingsRow = {
   digest_enabled: boolean;
   digest_email: string | null;
   digest_last_sent_on: string | null;
+  cardio_equipment: string[] | null;
 };
 
 const DEFAULT_SETTINGS: AccountSettings = { digestEnabled: false };
@@ -252,6 +265,7 @@ const mapSettings = (r: SettingsRow | null): AccountSettings =>
         digestEnabled: r.digest_enabled,
         digestEmail: r.digest_email ?? undefined,
         digestLastSentOn: r.digest_last_sent_on ?? undefined,
+        cardioEquipment: r.cardio_equipment ?? undefined,
       }
     : DEFAULT_SETTINGS;
 
@@ -368,6 +382,10 @@ type Ctx = {
   addWorkout: (input: NewWorkout) => Promise<WorkoutProgram | null>;
   updateWorkout: (id: string, patch: WorkoutPatch) => Promise<WorkoutProgram | null>;
   removeWorkout: (id: string) => Promise<boolean>;
+  workoutTemplates: WorkoutTemplate[];
+  addWorkoutTemplate: (input: NewWorkoutTemplate) => Promise<WorkoutTemplate | null>;
+  updateWorkoutTemplate: (id: string, patch: Partial<NewWorkoutTemplate>) => Promise<WorkoutTemplate | null>;
+  removeWorkoutTemplate: (id: string) => Promise<boolean>;
 
   addTask: (input: NewTask) => Promise<Task | null>;
   updateTask: (id: string, patch: TaskPatch) => Promise<Task | null>;
@@ -424,6 +442,7 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<AccountSettings>(DEFAULT_SETTINGS);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [workouts, setWorkouts] = useState<WorkoutProgram[]>([]);
+  const [workoutTemplates, setWorkoutTemplates] = useState<WorkoutTemplate[]>([]);
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [workoutLogs, setWorkoutLogs] = useState<WorkoutLog[]>([]);
 
@@ -443,7 +462,7 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setError(null);
 
-    const [unitsRes, staffRes, plansRes, studentsRes, paymentsRes, tasksRes, activitiesRes, settingsRes, leadsRes, workoutsRes, assessmentsRes, logsRes] =
+    const [unitsRes, staffRes, plansRes, studentsRes, paymentsRes, tasksRes, activitiesRes, settingsRes, leadsRes, workoutsRes, assessmentsRes, logsRes, templatesRes] =
       await Promise.all([
         supabase.from("units").select("*").order("created_at", { ascending: true }),
         supabase.from("staff").select("*").order("full_name", { ascending: true }),
@@ -457,7 +476,7 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
           .order("created_at", { ascending: false }),
         supabase
           .from("account_settings")
-          .select("revenue_goal, active_students_goal, digest_enabled, digest_email, digest_last_sent_on")
+          .select("revenue_goal, active_students_goal, digest_enabled, digest_email, digest_last_sent_on, cardio_equipment")
           .maybeSingle(),
         supabase.from("leads").select("*").order("stage_changed_at", { ascending: false }),
         supabase.from("workout_programs").select("*").order("created_at", { ascending: false }),
@@ -467,6 +486,7 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
           .select("id, student_id, workout_id, day_name, performed_on, exercises, comment, finished_at")
           .gte("performed_on", toDateValue(new Date(Date.now() - 180 * 86_400_000)))
           .order("performed_on", { ascending: false }),
+        supabase.from("workout_templates").select("*").order("title", { ascending: true }),
       ]);
 
     const firstError = [unitsRes, staffRes, plansRes, studentsRes, paymentsRes, tasksRes, activitiesRes, leadsRes, workoutsRes, assessmentsRes, logsRes].find(
@@ -491,6 +511,8 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
     setWorkouts(((workoutsRes.data ?? []) as WorkoutRow[]).map(mapWorkout));
     setAssessments(((assessmentsRes.data ?? []) as AssessmentRow[]).map(mapAssessment));
     setWorkoutLogs(((logsRes.data ?? []) as WorkoutLogRow[]).map(mapWorkoutLog));
+    // Treinos padrão: se a leitura falhar, o resto do sistema segue normal.
+    setWorkoutTemplates(((templatesRes.data ?? []) as WorkoutTemplateRow[]).map(mapWorkoutTemplate));
     setLoading(false);
   }, [accountId, authorName]);
 
@@ -1273,6 +1295,70 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
     [fail],
   );
 
+  // ───────────── treinos padrão ─────────────
+
+  const templateRowFrom = (input: Partial<NewWorkoutTemplate>) => {
+    const row: Record<string, unknown> = {};
+    if (input.title !== undefined) row.title = input.title.trim();
+    if (input.goal !== undefined) row.goal = nullable(input.goal);
+    if (input.level !== undefined) row.level = nullable(input.level);
+    if (input.cycleMonths !== undefined) row.cycle_months = input.cycleMonths || null;
+    if (input.notes !== undefined) row.notes = nullable(input.notes);
+    if (input.days !== undefined) row.days = input.days;
+    return row;
+  };
+
+  const addWorkoutTemplate = useCallback(
+    async (input: NewWorkoutTemplate) => {
+      if (!accountId) return null;
+      const { data, error: insertError } = await supabase
+        .from("workout_templates")
+        .insert({ account_id: accountId, ...templateRowFrom(input) })
+        .select("*")
+        .single();
+      if (insertError || !data) {
+        fail(insertError, "Não foi possível salvar o treino padrão.");
+        return null;
+      }
+      const template = mapWorkoutTemplate(data as WorkoutTemplateRow);
+      setWorkoutTemplates((prev) => [...prev, template].sort((a, b) => a.title.localeCompare(b.title, "pt-BR")));
+      return template;
+    },
+    [accountId, fail],
+  );
+
+  const updateWorkoutTemplate = useCallback(
+    async (id: string, patch: Partial<NewWorkoutTemplate>) => {
+      const { data, error: updateError } = await supabase
+        .from("workout_templates")
+        .update(templateRowFrom(patch))
+        .eq("id", id)
+        .select("*")
+        .single();
+      if (updateError || !data) {
+        fail(updateError, "Não foi possível atualizar o treino padrão.");
+        return null;
+      }
+      const template = mapWorkoutTemplate(data as WorkoutTemplateRow);
+      setWorkoutTemplates((prev) => prev.map((t) => (t.id === id ? template : t)));
+      return template;
+    },
+    [fail],
+  );
+
+  const removeWorkoutTemplate = useCallback(
+    async (id: string) => {
+      const { error: deleteError } = await supabase.from("workout_templates").delete().eq("id", id);
+      if (deleteError) {
+        fail(deleteError, "Não foi possível excluir o treino padrão.");
+        return false;
+      }
+      setWorkoutTemplates((prev) => prev.filter((t) => t.id !== id));
+      return true;
+    },
+    [fail],
+  );
+
   // ───────────── área do aluno ─────────────
 
   const reloadStudent = useCallback(async (id: string) => {
@@ -1454,10 +1540,11 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       if (patch.activeStudentsGoal !== undefined) row.active_students_goal = patch.activeStudentsGoal || null;
       if (patch.digestEnabled !== undefined) row.digest_enabled = patch.digestEnabled;
       if (patch.digestEmail !== undefined) row.digest_email = nullable(patch.digestEmail?.trim());
+      if (patch.cardioEquipment !== undefined) row.cardio_equipment = patch.cardioEquipment;
       const { data, error: saveError } = await supabase
         .from("account_settings")
         .upsert(row, { onConflict: "account_id" })
-        .select("revenue_goal, active_students_goal, digest_enabled, digest_email, digest_last_sent_on")
+        .select("revenue_goal, active_students_goal, digest_enabled, digest_email, digest_last_sent_on, cardio_equipment")
         .single();
       if (saveError || !data) {
         fail(saveError, "Não foi possível salvar as preferências.");
@@ -1779,6 +1866,10 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       addWorkout,
       updateWorkout,
       removeWorkout,
+      workoutTemplates,
+      addWorkoutTemplate,
+      updateWorkoutTemplate,
+      removeWorkoutTemplate,
       addTask,
       updateTask,
       toggleTask,
@@ -1858,6 +1949,10 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
       addWorkout,
       updateWorkout,
       removeWorkout,
+      workoutTemplates,
+      addWorkoutTemplate,
+      updateWorkoutTemplate,
+      removeWorkoutTemplate,
       addTask,
       updateTask,
       toggleTask,

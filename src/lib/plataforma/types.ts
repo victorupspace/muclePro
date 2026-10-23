@@ -190,6 +190,13 @@ export type Student = {
   birthDate?: string;
   whatsapp?: string;
   email?: string;
+  addressZip?: string;
+  addressStreet?: string;
+  addressNumber?: string;
+  addressComplement?: string;
+  addressDistrict?: string;
+  addressCity?: string;
+  addressState?: string;
   medicalNotes?: string;
   healthConditions: HealthCondition[];
   healthRestrictions?: string;

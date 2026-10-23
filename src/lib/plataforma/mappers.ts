@@ -91,6 +91,13 @@ export type StudentRow = {
   birth_date: string | null;
   whatsapp: string | null;
   email: string | null;
+  address_zip: string | null;
+  address_street: string | null;
+  address_number: string | null;
+  address_complement: string | null;
+  address_district: string | null;
+  address_city: string | null;
+  address_state: string | null;
   medical_notes: string | null;
   health_conditions: string[] | null;
   health_restrictions: string | null;
@@ -228,6 +235,13 @@ export const mapStudent = (r: StudentRow): Student => ({
   birthDate: r.birth_date ?? undefined,
   whatsapp: r.whatsapp ?? undefined,
   email: r.email ?? undefined,
+  addressZip: r.address_zip ?? undefined,
+  addressStreet: r.address_street ?? undefined,
+  addressNumber: r.address_number ?? undefined,
+  addressComplement: r.address_complement ?? undefined,
+  addressDistrict: r.address_district ?? undefined,
+  addressCity: r.address_city ?? undefined,
+  addressState: r.address_state ?? undefined,
   medicalNotes: r.medical_notes ?? undefined,
   healthConditions: (r.health_conditions ?? []) as HealthCondition[],
   healthRestrictions: r.health_restrictions ?? undefined,

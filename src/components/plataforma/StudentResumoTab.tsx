@@ -254,10 +254,11 @@ export function StudentResumoTab({
           <Row
             label="Nascimento"
             value={
-              student.birthDate ? `${formatDateValue(student.birthDate)}${age !== null ? ` · ${age} anos` : ""}` : "—"
+              student.birthDate ? `${formatDateValue(student.birthDate)}${age !== null ? ` · ${ageLabel(student.birthDate, age)}` : ""}` : "—"
             }
             icon={<Cake className="h-3.5 w-3.5" />}
           />
+          <Row label="Endereço" value={addressLabel(student)} icon={<MapPin className="h-3.5 w-3.5" />} />
           <Row label="Aluno desde" value={formatDateLong(student.createdAt)} icon={<CalendarDays className="h-3.5 w-3.5" />} />
         </Card>
 
@@ -449,9 +450,28 @@ function Row({
       <div className="flex min-w-0 items-center gap-2">
         {icon && <span className="text-ink-400">{icon}</span>}
         <span className="shrink-0 text-[11px] font-bold uppercase tracking-[0.1em] text-ink-500">{label}</span>
-        <span className="truncate text-[13px] font-medium text-ink-900">{value}</span>
+        <span title={value} className="truncate text-[13px] font-medium text-ink-900">{value}</span>
       </div>
       {action}
     </div>
   );
+}
+
+// Bebês aparecem em meses ("3 meses"); a partir de 1 ano, em anos.
+function ageLabel(birthDate: string, years: number) {
+  if (years >= 1) return `${years} ano${years === 1 ? "" : "s"}`;
+  const [y, m, d] = birthDate.split("-").map(Number);
+  const now = new Date();
+  let months = (now.getFullYear() - y) * 12 + (now.getMonth() + 1 - m);
+  if (now.getDate() < d) months -= 1;
+  return `${Math.max(months, 0)} ${months === 1 ? "mês" : "meses"}`;
+}
+
+function addressLabel(s: Student) {
+  const line1 = [s.addressStreet, s.addressNumber].filter(Boolean).join(", ");
+  const line2 = [s.addressComplement, s.addressDistrict].filter(Boolean).join(" · ");
+  const line3 = [s.addressCity, s.addressState].filter(Boolean).join("/");
+  const zip = s.addressZip ? `CEP ${s.addressZip.slice(0, 5)}-${s.addressZip.slice(5)}` : "";
+  const parts = [line1, line2, line3, zip].filter(Boolean);
+  return parts.length ? parts.join(" — ") : "—";
 }

@@ -151,6 +151,13 @@ export type NewStudent = {
   email?: string;
   cpf?: string;
   birthDate?: string;
+  addressZip?: string;
+  addressStreet?: string;
+  addressNumber?: string;
+  addressComplement?: string;
+  addressDistrict?: string;
+  addressCity?: string;
+  addressState?: string;
   unitId?: string;
   planId?: string;
   planStartedAt?: string;
@@ -1471,6 +1478,13 @@ export function PlataformaStoreProvider({ children }: { children: ReactNode }) {
     if (input.email !== undefined) row.email = nullable(input.email);
     if (input.cpf !== undefined) row.cpf = nullable(input.cpf);
     if (input.birthDate !== undefined) row.birth_date = nullable(input.birthDate);
+    if (input.addressZip !== undefined) row.address_zip = nullable(input.addressZip);
+    if (input.addressStreet !== undefined) row.address_street = nullable(input.addressStreet);
+    if (input.addressNumber !== undefined) row.address_number = nullable(input.addressNumber);
+    if (input.addressComplement !== undefined) row.address_complement = nullable(input.addressComplement);
+    if (input.addressDistrict !== undefined) row.address_district = nullable(input.addressDistrict);
+    if (input.addressCity !== undefined) row.address_city = nullable(input.addressCity);
+    if (input.addressState !== undefined) row.address_state = nullable(input.addressState);
     if (input.unitId !== undefined) row.unit_id = nullable(input.unitId);
     if (input.planId !== undefined) row.plan_id = nullable(input.planId);
     if (input.planStartedAt !== undefined) row.plan_started_at = nullable(input.planStartedAt);

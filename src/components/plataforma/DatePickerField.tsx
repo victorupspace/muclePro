@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { CalendarDays, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { maskDateBR, parseDateBR } from "@/lib/cadastro/masks";
 import { cn } from "@/lib/cn";
 import { EASE } from "@/lib/motion";
 
 const WEEKDAYS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"];
+const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+const POPOVER_WIDTH = 312;
+const POPOVER_HEIGHT = 400;
 
 type DatePickerFieldProps = {
   label: string;
@@ -14,160 +19,331 @@ type DatePickerFieldProps = {
   onChange: (value: string) => void;
   required?: boolean;
   placeholder?: string;
+  // Limites no formato aaaa-mm-dd.
+  min?: string;
+  max?: string;
+  // Esconde "Hoje / Amanhã / Próxima semana" (ex.: data de nascimento).
+  hideShortcuts?: boolean;
+  // Erro vindo do formulário (ex.: idade mínima).
+  error?: string | null;
+  hint?: string;
+  // Mensagens próprias para data antes de min / depois de max.
+  minMessage?: string;
+  maxMessage?: string;
 };
 
+// Campo de data: dá para digitar (dd/mm/aaaa) ou escolher no calendário.
+// O calendário abre num portal com posição fixa, então não é cortado por
+// modais ou áreas com rolagem.
 export function DatePickerField({
   label,
   value,
   onChange,
   required,
   placeholder = "dd/mm/aaaa",
+  min,
+  max,
+  hideShortcuts,
+  error,
+  hint,
+  minMessage,
+  maxMessage,
 }: DatePickerFieldProps) {
-  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const anchorRef = useRef<HTMLDivElement | null>(null);
+  const popRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
+  const [text, setText] = useState(() => isoToBR(value));
+  const [typingError, setTypingError] = useState<string | null>(null);
+  const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const selectedDate = useMemo(() => parseDateValue(value), [value]);
-  const [viewDate, setViewDate] = useState(() => selectedDate ?? new Date());
+  const [viewDate, setViewDate] = useState(() => selectedDate ?? parseDateValue(max ?? "") ?? new Date());
+
+  // Valor trocado por fora (abrir o formulário, limpar): reflete no texto.
+  useEffect(() => {
+    setText(isoToBR(value));
+    setTypingError(null);
+  }, [value]);
 
   useEffect(() => {
     if (selectedDate) setViewDate(selectedDate);
   }, [selectedDate]);
 
+  const place = useCallback(() => {
+    const rect = anchorRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const width = Math.min(POPOVER_WIDTH, window.innerWidth - 16);
+    const left = Math.min(Math.max(8, rect.left), window.innerWidth - width - 8);
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const top = spaceBelow >= POPOVER_HEIGHT || spaceBelow >= rect.top ? rect.bottom + 6 : Math.max(8, rect.top - POPOVER_HEIGHT - 6);
+    setPosition({ top, left, width });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open, place]);
+
   useEffect(() => {
     if (!open) return;
     function onPointerDown(event: MouseEvent) {
-      if (!wrapRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (anchorRef.current?.contains(target) || popRef.current?.contains(target)) return;
+      setOpen(false);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        setOpen(false);
+      }
     }
     document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKey, true);
+    };
   }, [open]);
 
   const monthDays = useMemo(() => buildMonthGrid(viewDate), [viewDate]);
   const todayValue = toDateValue(new Date());
-  const monthLabel = formatMonth(viewDate);
+  const years = useMemo(() => {
+    const from = Number((min ?? "1900").slice(0, 4));
+    const to = Number((max ?? `${new Date().getFullYear() + 5}`).slice(0, 4));
+    return Array.from({ length: Math.max(1, to - from + 1) }, (_, i) => to - i);
+  }, [min, max]);
+
+  const outOfRange = (iso: string) => Boolean((min && iso < min) || (max && iso > max));
+
+  function commit(iso: string) {
+    if (outOfRange(iso)) {
+      setTypingError(
+        (max && iso > max ? maxMessage : undefined) ?? (min && iso < min ? minMessage : undefined) ?? rangeMessage(min, max),
+      );
+      return;
+    }
+    setTypingError(null);
+    onChange(iso);
+  }
+
+  function handleType(raw: string) {
+    const masked = maskDateBR(raw);
+    setText(masked);
+    if (!masked) {
+      setTypingError(null);
+      onChange("");
+      return;
+    }
+    if (masked.length < 10) {
+      setTypingError(null);
+      return;
+    }
+    const iso = parseDateBR(masked);
+    if (!iso) {
+      setTypingError("Essa data não existe. Confira dia e mês.");
+      return;
+    }
+    commit(iso);
+  }
+
+  function handleBlur() {
+    if (text && text.length < 10) setTypingError("Complete a data no formato dd/mm/aaaa.");
+  }
 
   function selectDate(date: Date) {
-    onChange(toDateValue(date));
+    const iso = toDateValue(date);
+    if (outOfRange(iso)) return;
+    setText(isoToBR(iso));
+    commit(iso);
     setOpen(false);
   }
 
-  function selectQuick(days: number) {
-    selectDate(addDays(new Date(), days));
-  }
+  const shownError = typingError ?? error ?? null;
 
   return (
-    <label className="block">
+    <div className="block">
       <span className="mb-1 block text-[11px] font-bold uppercase tracking-[0.12em] text-ink-500">
         {label}
         {required && <span className="ml-1 text-brand">*</span>}
       </span>
 
-      <div ref={wrapRef} className="relative">
+      <div
+        ref={anchorRef}
+        className={cn(
+          "flex h-10 w-full items-center rounded-btn border bg-white transition-colors focus-within:border-ink-400",
+          shownError ? "border-danger-300" : "border-ink-200 hover:border-ink-300",
+        )}
+      >
+        <input
+          value={text}
+          onChange={(e) => handleType(e.target.value)}
+          onBlur={handleBlur}
+          placeholder={placeholder}
+          inputMode="numeric"
+          autoComplete="off"
+          aria-label={label}
+          aria-invalid={Boolean(shownError)}
+          required={required}
+          className="h-full min-w-0 flex-1 rounded-btn bg-transparent px-3 text-[13px] font-medium text-ink-900 outline-none placeholder:font-normal placeholder:text-ink-400"
+        />
         <button
           type="button"
           onClick={() => setOpen((current) => !current)}
-          className={cn(
-            "flex h-10 w-full items-center justify-between gap-3 rounded-btn border border-ink-200 bg-white px-3 text-left text-[13px] outline-none transition-colors hover:border-ink-300 focus:border-ink-400",
-            value ? "font-medium text-ink-900" : "text-ink-400",
-          )}
+          aria-label="Abrir calendário"
+          aria-expanded={open}
+          className="mr-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-btn text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-900"
         >
-          <span>{selectedDate ? formatDate(selectedDate) : placeholder}</span>
-          <CalendarDays className="h-3.5 w-3.5 shrink-0 text-ink-500" strokeWidth={2.3} />
+          <CalendarDays className="h-3.5 w-3.5" strokeWidth={2.3} />
         </button>
-
-        <AnimatePresence>
-          {open && (
-            <motion.div
-              initial={{ opacity: 0, y: 8, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 6, scale: 0.98 }}
-              transition={{ duration: 0.18, ease: EASE }}
-              className="absolute bottom-[calc(100%+8px)] left-0 right-0 z-[70] mx-auto w-full max-w-[320px] rounded-card border border-ink-200 bg-white p-2.5 shadow-[0_24px_70px_-24px_rgba(17,17,17,0.38)] sm:right-auto sm:mx-0 sm:max-w-[312px]"
-            >
-              <div className="grid grid-cols-3 gap-2">
-                <QuickButton active={value === todayValue} onClick={() => selectQuick(0)}>
-                  Hoje
-                </QuickButton>
-                <QuickButton onClick={() => selectQuick(1)}>Amanhã</QuickButton>
-                <QuickButton onClick={() => selectQuick(7)}>Próxima semana</QuickButton>
-              </div>
-
-              <div className="mt-3 flex items-center justify-between rounded-card bg-ink-50 px-2 py-1.5">
-                <button
-                  type="button"
-                  onClick={() => setViewDate((current) => addMonths(current, -1))}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-btn text-ink-600 transition-colors hover:bg-white hover:text-ink-900"
-                  aria-label="Mês anterior"
-                >
-                  <ChevronLeft className="h-4 w-4" strokeWidth={2.4} />
-                </button>
-                <p className="text-[13px] font-bold text-ink-900">{monthLabel}</p>
-                <button
-                  type="button"
-                  onClick={() => setViewDate((current) => addMonths(current, 1))}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-btn text-ink-600 transition-colors hover:bg-white hover:text-ink-900"
-                  aria-label="Próximo mês"
-                >
-                  <ChevronRight className="h-4 w-4" strokeWidth={2.4} />
-                </button>
-              </div>
-
-              <div className="mt-2.5 grid grid-cols-7 gap-0.5 text-center">
-                {WEEKDAYS.map((day) => (
-                  <span key={day} className="py-1 text-[10.5px] font-bold uppercase tracking-[0.08em] text-ink-500">
-                    {day}
-                  </span>
-                ))}
-                {monthDays.map(({ date, currentMonth }) => {
-                  const dateValue = toDateValue(date);
-                  const selected = value === dateValue;
-                  const isToday = todayValue === dateValue;
-                  return (
-                    <button
-                      key={dateValue}
-                      type="button"
-                      onClick={() => selectDate(date)}
-                      className={cn(
-                        "inline-flex h-8 items-center justify-center rounded-btn text-[12px] font-semibold transition-colors sm:h-8",
-                        selected
-                          ? "bg-brand text-white shadow-[0_10px_24px_-14px_rgb(var(--color-brand)/0.75)]"
-                          : isToday
-                            ? "border border-brand/30 bg-brand/10 text-brand"
-                            : currentMonth
-                              ? "text-ink-800 hover:bg-ink-100"
-                              : "text-ink-300 hover:bg-ink-50",
-                      )}
-                    >
-                      {date.getDate()}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="mt-2.5 flex items-center justify-between border-t border-ink-100 pt-2.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onChange("");
-                    setOpen(false);
-                  }}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-btn px-2 text-[12px] font-semibold text-ink-500 transition-colors hover:bg-ink-50 hover:text-ink-900"
-                >
-                  <X className="h-3.5 w-3.5" strokeWidth={2.4} />
-                  Limpar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => selectQuick(0)}
-                  className="inline-flex h-8 items-center rounded-btn px-2 text-[12px] font-semibold text-brand transition-colors hover:bg-brand/10"
-                >
-                  Hoje
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
-    </label>
+      {shownError ? (
+        <p role="alert" className="mt-1 text-[11.5px] font-semibold text-danger-600">
+          {shownError}
+        </p>
+      ) : hint ? (
+        <p className="mt-1 text-[11.5px] text-ink-500">{hint}</p>
+      ) : null}
+
+      {typeof document !== "undefined" &&
+        createPortal(
+          <AnimatePresence>
+            {open && position && (
+              <motion.div
+                ref={popRef}
+                initial={{ opacity: 0, y: 6, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                transition={{ duration: 0.16, ease: EASE }}
+                style={{ position: "fixed", top: position.top, left: position.left, width: position.width }}
+                className="z-[90] rounded-card border border-ink-200 bg-white p-2.5 shadow-[0_24px_70px_-24px_rgba(17,17,17,0.38)]"
+              >
+                {!hideShortcuts && (
+                  <div className="mb-3 grid grid-cols-3 gap-2">
+                    <QuickButton active={value === todayValue} onClick={() => selectDate(new Date())}>
+                      Hoje
+                    </QuickButton>
+                    <QuickButton onClick={() => selectDate(addDays(new Date(), 1))}>Amanhã</QuickButton>
+                    <QuickButton onClick={() => selectDate(addDays(new Date(), 7))}>Próxima semana</QuickButton>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between gap-1 rounded-card bg-ink-50 px-1.5 py-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setViewDate((current) => addMonths(current, -1))}
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-btn text-ink-600 transition-colors hover:bg-white hover:text-ink-900"
+                    aria-label="Mês anterior"
+                  >
+                    <ChevronLeft className="h-4 w-4" strokeWidth={2.4} />
+                  </button>
+                  <div className="flex min-w-0 items-center gap-1">
+                    <select
+                      value={viewDate.getMonth()}
+                      onChange={(e) => setViewDate(new Date(viewDate.getFullYear(), Number(e.target.value), 1))}
+                      aria-label="Mês"
+                      className="h-8 rounded-btn bg-transparent px-1 text-[13px] font-bold text-ink-900 outline-none hover:bg-white"
+                    >
+                      {MONTHS.map((m, i) => (
+                        <option key={m} value={i}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={viewDate.getFullYear()}
+                      onChange={(e) => setViewDate(new Date(Number(e.target.value), viewDate.getMonth(), 1))}
+                      aria-label="Ano"
+                      className="h-8 rounded-btn bg-transparent px-1 text-[13px] font-bold text-ink-900 outline-none hover:bg-white"
+                    >
+                      {!years.includes(viewDate.getFullYear()) && <option value={viewDate.getFullYear()}>{viewDate.getFullYear()}</option>}
+                      {years.map((y) => (
+                        <option key={y} value={y}>
+                          {y}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setViewDate((current) => addMonths(current, 1))}
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-btn text-ink-600 transition-colors hover:bg-white hover:text-ink-900"
+                    aria-label="Próximo mês"
+                  >
+                    <ChevronRight className="h-4 w-4" strokeWidth={2.4} />
+                  </button>
+                </div>
+
+                <div className="mt-2.5 grid grid-cols-7 gap-0.5 text-center">
+                  {WEEKDAYS.map((day) => (
+                    <span key={day} className="py-1 text-[10.5px] font-bold uppercase tracking-[0.08em] text-ink-500">
+                      {day}
+                    </span>
+                  ))}
+                  {monthDays.map(({ date, currentMonth }) => {
+                    const dateValue = toDateValue(date);
+                    const selected = value === dateValue;
+                    const isToday = todayValue === dateValue;
+                    const disabled = outOfRange(dateValue);
+                    return (
+                      <button
+                        key={dateValue}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => selectDate(date)}
+                        className={cn(
+                          "inline-flex h-8 items-center justify-center rounded-btn text-[12px] font-semibold transition-colors",
+                          disabled
+                            ? "cursor-not-allowed text-ink-300"
+                            : selected
+                              ? "bg-brand text-white shadow-[0_10px_24px_-14px_rgb(var(--color-brand)/0.75)]"
+                              : isToday
+                                ? "border border-brand/30 bg-brand/10 text-brand"
+                                : currentMonth
+                                  ? "text-ink-800 hover:bg-ink-100"
+                                  : "text-ink-400 hover:bg-ink-50",
+                        )}
+                      >
+                        {date.getDate()}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-2.5 flex items-center justify-between border-t border-ink-100 pt-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setText("");
+                      setTypingError(null);
+                      onChange("");
+                      setOpen(false);
+                    }}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-btn px-2 text-[12px] font-semibold text-ink-500 transition-colors hover:bg-ink-50 hover:text-ink-900"
+                  >
+                    <X className="h-3.5 w-3.5" strokeWidth={2.4} />
+                    Limpar
+                  </button>
+                  {!outOfRange(todayValue) && (
+                    <button
+                      type="button"
+                      onClick={() => selectDate(new Date())}
+                      className="inline-flex h-8 items-center rounded-btn px-2 text-[12px] font-semibold text-brand transition-colors hover:bg-brand/10"
+                    >
+                      Hoje
+                    </button>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body,
+        )}
+    </div>
   );
 }
 
@@ -196,6 +372,17 @@ function QuickButton({
   );
 }
 
+function rangeMessage(min?: string, max?: string) {
+  if (min && max) return `Escolha uma data entre ${isoToBR(min)} e ${isoToBR(max)}.`;
+  if (max) return `A data precisa ser até ${isoToBR(max)}.`;
+  return `A data precisa ser a partir de ${isoToBR(min ?? "")}.`;
+}
+
+function isoToBR(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : "";
+}
+
 function parseDateValue(value: string) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!match) return null;
@@ -207,19 +394,6 @@ function toDateValue(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
-}
-
-function formatDate(date: Date) {
-  return date.toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
-
-function formatMonth(date: Date) {
-  const label = date.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 function addDays(date: Date, amount: number) {

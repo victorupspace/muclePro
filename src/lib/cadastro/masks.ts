@@ -25,6 +25,28 @@ export function maskCPF(value: string) {
   return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
 }
 
+export function maskCEP(value: string) {
+  const d = onlyDigits(value).slice(0, 8);
+  return d.length <= 5 ? d : `${d.slice(0, 5)}-${d.slice(5)}`;
+}
+
+export function maskDateBR(value: string) {
+  const d = onlyDigits(value).slice(0, 8);
+  if (d.length <= 2) return d;
+  if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`;
+  return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
+}
+
+// "dd/mm/aaaa" -> "aaaa-mm-dd"; null se a data não existe no calendário.
+export function parseDateBR(value: string) {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value.trim());
+  if (!m) return null;
+  const [day, month, year] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+  return `${m[3]}-${m[2]}-${m[1]}`;
+}
+
 export function isValidEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim());
 }
@@ -60,6 +82,9 @@ export function isValidCPF(v: string) {
   const d = onlyDigits(v);
   if (d.length !== 11) return false;
   if (/^(\d)\1+$/.test(d)) return false;
+  // Sequências como 123.456.789-09 passam no dígito verificador, mas não existem.
+  const base = d.slice(0, 9);
+  if ("01234567890123456789".includes(base) || "98765432109876543210".includes(base)) return false;
   const calc = (len: number) => {
     let sum = 0;
     for (let i = 0; i < len; i++) sum += Number(d[i]) * (len + 1 - i);

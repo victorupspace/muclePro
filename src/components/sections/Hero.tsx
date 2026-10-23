@@ -88,6 +88,7 @@ export function Hero() {
           preload="metadata"
           poster="/assets/images/hero-poster.jpg"
         >
+          <source src="/assets/videos/hero-mobile.mp4" type="video/mp4" media="(max-width: 767px)" />
           <source src="/assets/videos/hero.mp4" type="video/mp4" />
         </video>
         <div className="absolute inset-0 bg-gradient-to-b from-ink-900/70 via-ink-900/50 to-ink-900/85" />
